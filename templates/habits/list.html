@@ -1,0 +1,33 @@
+{% extends "base.html" %}
+{% block title %}Thói quen{% endblock %}
+{% block content %}
+<div class="page-head">
+  <div><h1>Thói quen</h1><p>Đánh dấu mỗi ngày để giữ chuỗi. Bỏ lỡ một ngày thì chuỗi về 0, nhưng bạn luôn có thể bắt đầu lại.</p></div>
+  <a class="btn" href="{% url 'habit_create' %}">Thêm thói quen</a>
+</div>
+<section class="panel">
+{% for habit in habits %}
+  <div class="habit">
+    <div>
+      <h3><a href="{% url 'habit_detail' habit.pk %}">{{ habit.name }}</a></h3>
+      <div class="habit-meta">
+        {% if habit.stats.current_streak %}<span class="streak">Chuỗi {{ habit.stats.current_streak }} ngày</span>{% else %}<span class="streak zero">Chưa có chuỗi</span>{% endif %}
+        <span>Dài nhất {{ habit.stats.longest_streak }} ngày</span>
+        <span>Tuần này {{ habit.stats.week_done }}/{{ habit.stats.week_target }}</span>
+        {% if habit.reminder_enabled and habit.reminder_time %}<span>Nhắc lúc {{ habit.reminder_time|time:"H:i" }}</span>{% endif %}
+        {% if habit.stats.goal_reached %}<span class="badge sun">Đạt mục tiêu {{ habit.stats.streak_goal }} ngày</span>{% endif %}
+      </div>
+      <div class="dots" aria-label="7 ngày gần nhất">
+        {% for d in habit.week_grid %}<span class="{% if d.done %}done{% endif %} {% if d.is_today %}today{% endif %}" title="{{ d.date|date:'d/m' }}"></span>{% endfor %}
+      </div>
+    </div>
+    <form method="post" action="{% url 'habit_toggle' habit.pk %}">{% csrf_token %}
+      {% if habit.stats.done_today %}<button class="btn ghost" type="submit">Đã xong hôm nay · bỏ</button>
+      {% else %}<button class="btn" type="submit">Hoàn thành hôm nay</button>{% endif %}
+    </form>
+  </div>
+{% empty %}
+  <div class="empty"><p>Bạn chưa có thói quen nào. Hãy bắt đầu với một việc chỉ mất 2 phút mỗi ngày.</p><a class="btn" href="{% url 'habit_create' %}">Thêm thói quen đầu tiên</a></div>
+{% endfor %}
+</section>
+{% endblock %}

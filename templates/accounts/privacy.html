@@ -1,0 +1,51 @@
+{% extends "base.html" %}
+{% block title %}Quyền riêng tư{% endblock %}
+{% block content %}
+<div class="page-head"><div><h1>Quyền riêng tư và dữ liệu</h1><p>Bạn kiểm soát dữ liệu của mình.</p></div></div>
+
+<section class="panel">
+  <h2>Cách Mầm bảo vệ dữ liệu của bạn</h2>
+  <ul>
+    <li>Mật khẩu được băm bằng PBKDF2, không ai đọc lại được.</li>
+    <li>Nội dung journal được <strong>mã hóa</strong> trong cơ sở dữ liệu và chỉ bạn xem được.</li>
+    <li>Người dùng khác, kể cả quản trị viên, không đọc được dữ liệu của bạn. Quản trị viên chỉ thấy thống kê tổng hợp ẩn danh.</li>
+    <li>AI coach chỉ đọc số liệu tổng hợp (tâm trạng, giờ ngủ, thói quen), không bao giờ đọc journal.</li>
+  </ul>
+</section>
+
+<section class="panel">
+  <h2>AI coach</h2>
+  <form method="post">{% csrf_token %}
+    <label class="check"><input type="checkbox" name="consent_ai" {% if user.consent_ai %}checked{% endif %}>
+      <span>Cho phép AI coach đọc số liệu tổng hợp của tôi để tóm tắt tuần và gợi ý mục tiêu nhỏ.</span></label>
+    <p class="btn-row" style="margin-top:14px"><button class="btn" type="submit">Lưu lựa chọn</button></p>
+  </form>
+</section>
+
+<section class="panel">
+  <h2>Xuất dữ liệu</h2>
+  <p>Tải về toàn bộ thói quen, check-in, journal, thông báo và báo cáo của bạn dưới dạng file JSON.</p>
+  <a class="btn ghost" href="{% url 'export_data' %}">Tải dữ liệu của tôi (JSON)</a>
+</section>
+
+<section class="panel">
+  <h2>Dữ liệu mẫu</h2>
+  <p>Nạp 30 ngày check-in, 4 thói quen và vài journal mẫu để xem thử dashboard. Bạn có thể xóa chúng ở mục bên dưới.</p>
+  <form method="post" action="{% url 'demo_data' %}">{% csrf_token %}<button class="btn ghost" type="submit">Nạp dữ liệu mẫu 30 ngày</button></form>
+</section>
+
+<section class="panel">
+  <h2>Xóa dữ liệu</h2>
+  <form method="post" action="{% url 'delete_data' %}" data-confirm="Xóa toàn bộ dữ liệu cá nhân? Việc này không hoàn tác được.">{% csrf_token %}
+    <p>Xóa thói quen, check-in, journal, thông báo và báo cáo AI. Tài khoản vẫn được giữ.</p>
+    <label class="check"><input type="checkbox" name="confirm" value="yes"><span>Tôi hiểu dữ liệu sẽ bị xóa vĩnh viễn.</span></label>
+    <p style="margin-top:14px"><button class="btn danger" type="submit">Xóa dữ liệu của tôi</button></p>
+  </form>
+  <hr style="border:0;border-top:1px solid var(--line);margin:22px 0">
+  <form method="post" action="{% url 'delete_account' %}" data-confirm="Xóa tài khoản và toàn bộ dữ liệu? Việc này không hoàn tác được.">{% csrf_token %}
+    <p>Xóa hẳn tài khoản cùng toàn bộ dữ liệu. Nhập mật khẩu để xác nhận.</p>
+    <div class="field form-narrow"><label for="pw">Mật khẩu</label><input id="pw" type="password" name="password" autocomplete="current-password" required></div>
+    <button class="btn danger" type="submit">Xóa tài khoản</button>
+  </form>
+</section>
+{% endblock %}

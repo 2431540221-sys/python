@@ -1,0 +1,31 @@
+# Render Blueprint: New + > Blueprint > chọn repo GitHub chứa project này.
+# Kiểm tra lại tên gói (plan) trong tài liệu Render trước khi deploy, gói free có thể thay đổi.
+services:
+  - type: web
+    name: mam-wellbeing
+    runtime: python
+    plan: free
+    buildCommand: "./build.sh"
+    startCommand: "gunicorn config.wsgi:application --workers 2 --timeout 60"
+    healthCheckPath: /accounts/login/
+    envVars:
+      - key: PYTHON_VERSION
+        value: 3.12.7
+      - key: DEBUG
+        value: "0"
+      - key: SECRET_KEY
+        generateValue: true
+      - key: JOURNAL_ENCRYPTION_KEY       # giữ cố định: mất khóa này thì journal cũ không giải mã được
+        generateValue: true
+      - key: LOAD_DEMO                     # đổi thành "1" nếu muốn có sẵn tài khoản demo (nhớ tắt sau khi demo)
+        value: "0"
+      - key: GEMINI_API_KEY                # tùy chọn: không có thì AI coach dùng bộ luật dự phòng
+        sync: false
+      - key: DATABASE_URL
+        fromDatabase:
+          name: mam-db
+          property: connectionString
+
+databases:
+  - name: mam-db
+    plan: free

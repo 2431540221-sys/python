@@ -1,0 +1,12 @@
+{% extends "base.html" %}
+{% block title %}{{ title }}{% endblock %}
+{% block content %}
+<div class="page-head"><h1>{{ title }}</h1></div>
+<section class="panel form-narrow" style="max-width:720px">
+  <form method="post" novalidate>{% csrf_token %}
+    {% for field in form %}{% include "partials/field.html" %}{% endfor %}
+    <p class="small muted">Nội dung được mã hóa trước khi lưu vào cơ sở dữ liệu.</p>
+    <div class="btn-row"><button class="btn" type="submit">Lưu journal</button><a class="btn ghost" href="{% url 'journal_list' %}">Hủy</a></div>
+  </form>
+</section>
+{% endblock %}

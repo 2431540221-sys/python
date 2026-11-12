@@ -1,0 +1,26 @@
+{% extends "base.html" %}
+{% block title %}Lịch sử check-in{% endblock %}
+{% block content %}
+<div class="page-head"><div><h1>Lịch sử check-in</h1><p>60 ngày gần nhất.</p></div><a class="btn" href="{% url 'checkin' %}">Check-in</a></div>
+<section class="panel">
+{% if entries %}
+  <div class="table-wrap"><table class="table">
+    <thead><tr><th>Ngày</th><th>Tâm trạng</th><th>Giờ ngủ</th><th>Vận động</th><th>Ghi chú</th><th></th></tr></thead>
+    <tbody>
+    {% for c in entries %}
+      <tr>
+        <td>{{ c.date|date:"D d/m/Y" }}</td>
+        <td><span class="pill-mood m{{ c.mood }}" title="{{ c.get_mood_display }}">{{ c.mood }}</span> <span class="muted small">{{ c.get_mood_display }}</span></td>
+        <td>{{ c.sleep_hours|floatformat:"-1" }} giờ</td>
+        <td>{% if c.activity_type == "none" %}<span class="muted">–</span>{% else %}{{ c.get_activity_type_display }}, {{ c.activity_minutes }} phút{% endif %}</td>
+        <td>{{ c.note|default:"" }}</td>
+        <td><form method="post" action="{% url 'checkin_delete' c.pk %}" data-confirm="Xóa check-in này?">{% csrf_token %}<button class="btn ghost small" type="submit">Xóa</button></form></td>
+      </tr>
+    {% endfor %}
+    </tbody>
+  </table></div>
+{% else %}
+  <div class="empty"><p>Chưa có check-in nào.</p><a class="btn" href="{% url 'checkin' %}">Check-in đầu tiên</a></div>
+{% endif %}
+</section>
+{% endblock %}

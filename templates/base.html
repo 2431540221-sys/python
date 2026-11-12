@@ -1,0 +1,74 @@
+{% load static %}<!doctype html>
+<html lang="vi">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{% block title %}Mầm{% endblock %} · Mầm Wellbeing</title>
+  <meta name="theme-color" content="#12363a">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="{% static 'css/app.css' %}">
+  {% block head %}{% endblock %}
+</head>
+<body>
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <symbol id="i-sprout" viewBox="0 0 32 32"><path d="M16 29V16" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" fill="none"/><path d="M16 16c0-5 3.6-9 10-9 0 6-3.6 10-10 9z" fill="#4fae8f"/><path d="M16 19c0-4-2.8-7-8-7 0 5 2.8 8 8 7z" fill="#d4ebdf"/></symbol>
+  <symbol id="i-home" viewBox="0 0 24 24"><path d="M3 11l9-8 9 8"/><path d="M5 10v10h14V10"/></symbol>
+  <symbol id="i-habit" viewBox="0 0 24 24"><path d="M12 21v-9"/><path d="M12 12c0-4 3-7 8-7 0 5-3 8-8 7z"/><path d="M12 14c0-3-2-5-6-5 0 4 2 6 6 5z"/></symbol>
+  <symbol id="i-smile" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M8 14c1 1.5 2.5 2 4 2s3-.5 4-2"/><path d="M9 9.5h.01M15 9.5h.01"/></symbol>
+  <symbol id="i-book" viewBox="0 0 24 24"><path d="M5 4h10a3 3 0 013 3v13H8a3 3 0 01-3-3V4z"/><path d="M5 17a3 3 0 013-3h10"/></symbol>
+  <symbol id="i-bell" viewBox="0 0 24 24"><path d="M6 17V11a6 6 0 1112 0v6l1.5 2h-15z"/><path d="M10 21a2 2 0 004 0"/></symbol>
+  <symbol id="i-spark" viewBox="0 0 24 24"><path d="M12 3l1.8 5.2L19 10l-5.2 1.8L12 17l-1.8-5.2L5 10l5.2-1.8z"/><path d="M19 16v4M17 18h4"/></symbol>
+  <symbol id="i-shield" viewBox="0 0 24 24"><path d="M12 3l8 3v6c0 5-3.5 8-8 9-4.5-1-8-4-8-9V6z"/><path d="M9 12l2 2 4-4"/></symbol>
+  <symbol id="i-bars" viewBox="0 0 24 24"><path d="M5 20V10M12 20V4M19 20v-7"/></symbol>
+  <symbol id="i-out" viewBox="0 0 24 24"><path d="M9 4H5v16h4"/><path d="M16 8l4 4-4 4M20 12H9"/></symbol>
+  <symbol id="i-lock" viewBox="0 0 24 24"><rect x="5" y="11" width="14" height="9" rx="2"/><path d="M8 11V8a4 4 0 018 0v3"/></symbol>
+</svg>
+
+{% if user.is_authenticated %}
+<div class="shell">
+  <nav class="sidenav" aria-label="Menu chính">
+    <a class="brand" href="{% url 'dashboard' %}"><svg><use href="#i-sprout"/></svg>Mầm</a>
+    <a class="navlink {% if nav == 'dashboard' %}active{% endif %}" href="{% url 'dashboard' %}" {% if nav == 'dashboard' %}aria-current="page"{% endif %}><svg class="icon"><use href="#i-home"/></svg>Tổng quan</a>
+    <a class="navlink {% if nav == 'habits' %}active{% endif %}" href="{% url 'habit_list' %}" {% if nav == 'habits' %}aria-current="page"{% endif %}><svg class="icon"><use href="#i-habit"/></svg>Thói quen</a>
+    <a class="navlink {% if nav == 'checkin' %}active{% endif %}" href="{% url 'checkin' %}" {% if nav == 'checkin' %}aria-current="page"{% endif %}><svg class="icon"><use href="#i-smile"/></svg>Check-in</a>
+    <a class="navlink {% if nav == 'journal' %}active{% endif %}" href="{% url 'journal_list' %}" {% if nav == 'journal' %}aria-current="page"{% endif %}><svg class="icon"><use href="#i-book"/></svg>Journal</a>
+    <a class="navlink {% if nav == 'notifications' %}active{% endif %}" href="{% url 'notifications' %}" {% if nav == 'notifications' %}aria-current="page"{% endif %}><svg class="icon"><use href="#i-bell"/></svg>Thông báo{% if unread_count %}<span class="navbadge">{{ unread_count }}</span>{% endif %}</a>
+    <a class="navlink {% if nav == 'coach' %}active{% endif %}" href="{% url 'coach' %}" {% if nav == 'coach' %}aria-current="page"{% endif %}><svg class="icon"><use href="#i-spark"/></svg>AI coach</a>
+    <div class="navsep"></div>
+    <a class="navlink {% if nav == 'privacy' %}active{% endif %}" href="{% url 'privacy' %}" {% if nav == 'privacy' %}aria-current="page"{% endif %}><svg class="icon"><use href="#i-shield"/></svg>Quyền riêng tư</a>
+    {% if user.is_admin_role %}
+    <a class="navlink {% if nav == 'admin' %}active{% endif %}" href="{% url 'admin_stats' %}" {% if nav == 'admin' %}aria-current="page"{% endif %}><svg class="icon"><use href="#i-bars"/></svg>Thống kê ẩn danh</a>
+    {% endif %}
+    <div class="navuser">
+      <strong>{{ user.username }}</strong>{{ user.get_role_display }}
+      <form method="post" action="{% url 'logout' %}">{% csrf_token %}
+        <button class="navlink" type="submit"><svg class="icon"><use href="#i-out"/></svg>Đăng xuất</button>
+      </form>
+    </div>
+  </nav>
+  <main class="main" id="main">
+{% else %}
+<div class="auth"><div class="auth-box">
+  <div class="auth-brand"><svg><use href="#i-sprout"/></svg>Mầm</div>
+  <p class="muted">Theo dõi thói quen và wellbeing, từng bước nhỏ mỗi ngày.</p>
+{% endif %}
+
+    {% if messages %}
+    <ul class="flashes" role="status">
+      {% for m in messages %}<li class="flash {{ m.tags }}">{{ m }}</li>{% endfor %}
+    </ul>
+    {% endif %}
+    {% block content %}{% endblock %}
+
+{% if user.is_authenticated %}
+  </main>
+</div>
+{% else %}
+</div></div>
+{% endif %}
+<script src="{% static 'js/app.js' %}" defer></script>
+{% block scripts %}{% endblock %}
+</body>
+</html>

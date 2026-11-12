@@ -1,0 +1,23 @@
+{% extends "base.html" %}
+{% block title %}Thông báo{% endblock %}
+{% block content %}
+<div class="page-head">
+  <div><h1>Thông báo</h1><p>Nhắc nhở theo giờ, cảnh báo sắp mất chuỗi và tin từ AI coach.</p></div>
+  {% if unread_count %}<form method="post" action="{% url 'notifications_read' %}">{% csrf_token %}<button class="btn ghost" type="submit">Đánh dấu đã đọc tất cả</button></form>{% endif %}
+</div>
+<section class="panel">
+{% for n in items %}
+  <div class="notice {% if not n.is_read %}unread{% endif %}">
+    <span class="dot" aria-hidden="true"></span>
+    <div>
+      <strong>{{ n.title }}</strong> <span class="badge {% if n.kind == 'streak_risk' %}sun{% endif %}">{{ n.get_kind_display }}</span>
+      <div class="muted">{{ n.body }}</div>
+      {% if n.habit and n.kind != 'coach' %}<a class="small" href="{% url 'habit_detail' n.habit.pk %}">Mở thói quen</a>{% endif %}
+    </div>
+    <time datetime="{{ n.created_at|date:'c' }}">{{ n.created_at|date:"d/m H:i" }}</time>
+  </div>
+{% empty %}
+  <div class="empty"><p>Chưa có thông báo nào. Bật nhắc nhở cho một thói quen để nhận thông báo đúng giờ.</p><a class="btn" href="{% url 'habit_list' %}">Đi tới thói quen</a></div>
+{% endfor %}
+</section>
+{% endblock %}

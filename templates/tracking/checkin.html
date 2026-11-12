@@ -1,0 +1,29 @@
+{% extends "base.html" %}
+{% block title %}Check-in{% endblock %}
+{% block content %}
+<div class="page-head"><div><h1>Check-in hôm nay</h1><p>Mất chưa tới 1 phút. {% if existing %}Hôm nay bạn đã check-in, lưu lại sẽ cập nhật bản ghi cũ.{% endif %}</p></div></div>
+<section class="panel form-narrow" style="max-width:680px">
+  <form method="post" novalidate>{% csrf_token %}
+    {% if form.non_field_errors %}<div class="errorbox">{{ form.non_field_errors|join:" " }}</div>{% endif %}
+    <div class="field">
+      <label id="mood-label">{{ form.mood.label }}</label>
+      <ul class="mood-scale" role="radiogroup" aria-labelledby="mood-label">
+        {% for radio in form.mood %}
+          <li><label for="{{ radio.id_for_label }}">{{ radio.tag }}<span class="face">{{ radio.data.value }}</span>{{ radio.choice_label }}</label></li>
+        {% endfor %}
+      </ul>
+      {% if form.mood.errors %}<ul class="errors">{% for e in form.mood.errors %}<li>{{ e }}</li>{% endfor %}</ul>{% endif %}
+    </div>
+    <div class="two">
+      {% with field=form.date %}{% include "partials/field.html" %}{% endwith %}
+      {% with field=form.sleep_hours %}{% include "partials/field.html" %}{% endwith %}
+    </div>
+    <div class="two">
+      {% with field=form.activity_type %}{% include "partials/field.html" %}{% endwith %}
+      {% with field=form.activity_minutes %}{% include "partials/field.html" %}{% endwith %}
+    </div>
+    {% with field=form.note %}{% include "partials/field.html" %}{% endwith %}
+    <div class="btn-row"><button class="btn" type="submit">Lưu check-in</button><a class="btn ghost" href="{% url 'history' %}">Xem lịch sử</a></div>
+  </form>
+</section>
+{% endblock %}

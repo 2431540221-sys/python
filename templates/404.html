@@ -1,0 +1,5 @@
+{% extends "base.html" %}
+{% block title %}Không tìm thấy{% endblock %}
+{% block content %}
+<div class="panel empty"><h1>Không tìm thấy trang này</h1><p>Trang không tồn tại, hoặc không thuộc về tài khoản của bạn.</p><a class="btn" href="{% url 'home' %}">Về trang chính</a></div>
+{% endblock %}

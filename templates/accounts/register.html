@@ -1,0 +1,13 @@
+{% extends "base.html" %}
+{% block title %}Đăng ký{% endblock %}
+{% block content %}
+<div class="panel">
+  <h1>Tạo tài khoản</h1>
+  <form method="post" novalidate>{% csrf_token %}
+    {% for field in form %}{% include "partials/field.html" %}{% endfor %}
+    <p class="small muted">Mật khẩu được băm (PBKDF2) trước khi lưu, journal được mã hóa. Bạn có thể xuất hoặc xóa dữ liệu bất cứ lúc nào.</p>
+    <button class="btn" type="submit">Đăng ký</button>
+  </form>
+</div>
+<p class="auth-foot">Đã có tài khoản? <a href="{% url 'login' %}">Đăng nhập</a></p>
+{% endblock %}

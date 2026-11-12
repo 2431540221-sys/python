@@ -1,0 +1,32 @@
+{% extends "base.html" %}
+{% block title %}Thống kê ẩn danh{% endblock %}
+{% block content %}
+<div class="page-head"><div><h1>Thống kê ẩn danh</h1><p>Chỉ có số liệu tổng hợp. Không hiển thị tên, email hay nội dung journal của bất kỳ ai.</p></div></div>
+{% if not stats.available %}
+  <div class="panel empty">{{ stats.detail }}</div>
+{% else %}
+  <div class="strip">
+    <div><b>{{ stats.users.total }}</b><span>người dùng</span></div>
+    <div><b>{{ stats.users.active_last_7_days }}</b><span>hoạt động 7 ngày qua</span></div>
+    <div><b>{{ stats.habits.total }}</b><span>thói quen ({{ stats.habits.avg_habits_per_user }}/người)</span></div>
+    <div><b>{{ stats.users.consent_ai_percent }}%</b><span>cho phép AI coach</span></div>
+  </div>
+  <div class="grid2">
+    <section class="panel">
+      <h2>Check-in 30 ngày qua</h2>
+      <p>{{ stats.checkins_last_30_days.count }} lượt check-in. Tâm trạng trung bình <strong>{{ stats.checkins_last_30_days.avg_mood|default:"–" }}</strong>/5, giờ ngủ trung bình <strong>{{ stats.checkins_last_30_days.avg_sleep_hours|default:"–" }}</strong> giờ.</p>
+      <div class="bars">
+        {% for level, n, pct in mood_rows %}
+          <div class="bar-row"><span>Mức {{ level }}</span><div class="progress"><i style="width:{{ pct }}%"></i></div><span>{{ n }}</span></div>
+        {% endfor %}
+      </div>
+    </section>
+    <section class="panel">
+      <h2>Hoạt động</h2>
+      <p>{{ stats.habits.completions_last_7_days }} lượt hoàn thành thói quen trong 7 ngày qua.</p>
+      <p>{{ stats.journals.total_entries }} bài journal (chỉ đếm số lượng, không ai đọc được nội dung).</p>
+      <p>{{ stats.users.new_last_30_days }} tài khoản mới trong 30 ngày qua.</p>
+    </section>
+  </div>
+{% endif %}
+{% endblock %}

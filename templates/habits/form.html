@@ -1,0 +1,12 @@
+{% extends "base.html" %}
+{% block title %}{{ title }}{% endblock %}
+{% block content %}
+<div class="page-head"><h1>{{ title }}</h1></div>
+<section class="panel form-narrow">
+  <form method="post" novalidate>{% csrf_token %}
+    {% if form.non_field_errors %}<div class="errorbox">{{ form.non_field_errors|join:" " }}</div>{% endif %}
+    {% for field in form %}{% include "partials/field.html" %}{% endfor %}
+    <div class="btn-row"><button class="btn" type="submit">Lưu thói quen</button><a class="btn ghost" href="{% url 'habit_list' %}">Hủy</a></div>
+  </form>
+</section>
+{% endblock %}

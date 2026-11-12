@@ -1,0 +1,90 @@
+{% extends "base.html" %}
+{% load static %}
+{% block title %}Tổng quan{% endblock %}
+{% block content %}
+<div class="hero">
+  <div>
+    <h1>Chào {{ user.username }}</h1>
+    {% if habits %}
+      <p>Hôm nay bạn đã hoàn thành <strong>{{ done_today }}/{{ habits|length }}</strong> thói quen.</p>
+    {% else %}
+      <p>Hãy tạo thói quen đầu tiên để Mầm bắt đầu nảy.</p>
+    {% endif %}
+    {% if not checked_in_today %}<p><a class="btn small" href="{% url 'checkin' %}">Check-in hôm nay</a></p>{% endif %}
+  </div>
+  <div class="sprout-wrap">
+    {% include "partials/sprout.html" with stage=sprout_stage %}
+    <p class="sprout-caption">
+      {% if best_streak %}Chuỗi tốt nhất: {{ best_streak }} ngày.{% else %}Cây đang là hạt giống.{% endif %}
+      {% if next_milestone %}<br>Còn {{ days_to_milestone }} ngày tới mốc {{ next_milestone }}.{% endif %}
+    </p>
+  </div>
+</div>
+
+{% if risks %}
+<div class="alert">
+  <h3>Sắp mất chuỗi</h3>
+  <ul>
+    {% for r in risks %}
+    <li><span><strong>{{ r.habit.name }}</strong>: chuỗi {{ r.streak }} ngày, hôm nay chưa làm.</span>
+      <form method="post" action="{% url 'habit_toggle' r.habit.pk %}">{% csrf_token %}<button class="btn small" type="submit">Làm ngay</button></form></li>
+    {% endfor %}
+  </ul>
+</div>
+{% endif %}
+
+<div class="strip" aria-label="Tóm tắt 7 ngày qua">
+  <div><b>{{ week.avg_mood|default_if_none:"–" }}</b><span>tâm trạng trung bình (1-5)</span></div>
+  <div><b>{{ week.avg_sleep_hours|default_if_none:"–" }}</b><span>giờ ngủ trung bình</span></div>
+  <div><b>{% if week.completion_percent is None %}–{% else %}{{ week.completion_percent }}%{% endif %}</b><span>thói quen hoàn thành</span></div>
+  <div><b>{{ week.total_activity_minutes }}</b><span>phút vận động</span></div>
+</div>
+
+<section class="panel">
+  <h2>Xu hướng của bạn</h2>
+  <div class="chart-controls">
+    <div class="seg" role="group" aria-label="Khoảng thời gian">
+      <button type="button" data-period="week" aria-pressed="false">7 ngày</button>
+      <button type="button" data-period="month" aria-pressed="true">30 ngày</button>
+    </div>
+    <div class="seg" role="group" aria-label="Gom nhóm">
+      <button type="button" data-group="day" aria-pressed="true">Theo ngày</button>
+      <button type="button" data-group="week" aria-pressed="false">Theo tuần</button>
+    </div>
+  </div>
+  <div id="chart-mood" class="chart" role="img" aria-label="Biểu đồ tâm trạng và giấc ngủ"></div>
+  <div id="chart-habits" class="chart" role="img" aria-label="Biểu đồ thói quen hoàn thành"></div>
+  <p class="chart-note" id="chart-status">Đang tải số liệu…</p>
+</section>
+
+<div class="grid2">
+  <section class="panel">
+    <h2>Thói quen hôm nay</h2>
+    {% for h in habits %}
+      <div class="habit" style="grid-template-columns:1fr auto;padding:10px 0">
+        <div><a href="{% url 'habit_detail' h.pk %}">{{ h.name }}</a>
+          <div class="habit-meta">{% if h.stats.current_streak %}<span class="streak">Chuỗi {{ h.stats.current_streak }}</span>{% else %}<span class="streak zero">Chưa có chuỗi</span>{% endif %}</div></div>
+        <form method="post" action="{% url 'habit_toggle' h.pk %}">{% csrf_token %}
+          <button class="btn small {% if h.stats.done_today %}ghost{% endif %}" type="submit">{% if h.stats.done_today %}Đã xong{% else %}Hoàn thành{% endif %}</button></form>
+      </div>
+    {% empty %}
+      <div class="empty"><p>Chưa có thói quen nào.</p><a class="btn small" href="{% url 'habit_create' %}">Thêm thói quen</a></div>
+    {% endfor %}
+  </section>
+  <section class="panel">
+    <h2>Thông báo gần đây</h2>
+    {% for n in recent_notifications %}
+      <div class="notice {% if not n.is_read %}unread{% endif %}" style="grid-template-columns:12px 1fr">
+        <span class="dot"></span><div><strong>{{ n.title }}</strong><div class="muted small">{{ n.body }}</div></div>
+      </div>
+    {% empty %}
+      <div class="empty"><p>Chưa có thông báo nào.</p></div>
+    {% endfor %}
+    <p style="margin-top:12px"><a href="{% url 'notifications' %}">Xem tất cả thông báo</a></p>
+  </section>
+</div>
+{% endblock %}
+{% block scripts %}
+<script src="{% static 'vendor/plotly.min.js' %}"></script>
+<script src="{% static 'js/dashboard.js' %}" defer></script>
+{% endblock %}

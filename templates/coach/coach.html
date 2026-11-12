@@ -1,0 +1,42 @@
+{% extends "base.html" %}
+{% block title %}AI coach{% endblock %}
+{% block content %}
+<div class="page-head"><div><h1>AI coach</h1><p>Tóm tắt tuần và gợi ý mục tiêu nhỏ từ số liệu bạn đã ghi. Mầm không chẩn đoán y tế.</p></div></div>
+
+{% if not user.consent_ai %}
+<div class="alert"><h3>AI coach chưa được bật</h3><p>Hãy cho phép AI coach đọc số liệu tổng hợp (không gồm journal) trong mục Quyền riêng tư.</p><a class="btn small" href="{% url 'privacy' %}">Mở Quyền riêng tư</a></div>
+{% else %}
+<section class="panel report">
+  <div class="btn-row" style="justify-content:space-between">
+    <h2 style="margin:0">Tóm tắt tuần</h2>
+    <form method="post" action="{% url 'coach_generate' %}">{% csrf_token %}<button class="btn" type="submit">{% if report %}Tạo lại bản tóm tắt{% else %}Tạo tóm tắt tuần này{% endif %}</button></form>
+  </div>
+  {% if report %}
+    <p class="muted small">{{ report.week_start|date:"d/m" }} – {{ report.week_end|date:"d/m/Y" }} · {% if report.source == "llm" %}tạo bằng AI{% else %}tạo bằng bộ luật đơn giản{% endif %}</p>
+    <p>{{ report.summary }}</p>
+    {% if report.patterns %}<h3>Điều đáng chú ý</h3><ul>{% for p in report.patterns %}<li>{{ p }}</li>{% endfor %}</ul>{% endif %}
+    {% if report.goals %}<h3>Mục tiêu nhỏ cho tuần tới</h3><ul>{% for g in report.goals %}<li>{{ g }}</li>{% endfor %}</ul>{% endif %}
+    {% if report.actions %}<h3>Làm ngay hôm nay</h3><ul>{% for a in report.actions %}<li>{{ a }}</li>{% endfor %}</ul>{% endif %}
+    <p class="disclaimer">{{ disclaimer }}</p>
+  {% else %}
+    <div class="empty"><p>Chưa có bản tóm tắt nào. Check-in vài ngày rồi bấm “Tạo tóm tắt tuần này”.</p></div>
+  {% endif %}
+</section>
+
+<section class="panel">
+  <h2>Hỏi Mầm một điều nhỏ</h2>
+  <form method="post" action="{% url 'coach_ask' %}">{% csrf_token %}
+    <div class="field"><label for="q" class="sr-only">Câu hỏi</label><textarea id="q" name="question" maxlength="500" rows="3" style="min-height:90px" placeholder="Ví dụ: Mình hay trì hoãn thói quen buổi tối, nên bắt đầu thế nào?"></textarea></div>
+    <button class="btn ghost" type="submit">Gửi câu hỏi</button>
+  </form>
+  {% if answer %}
+    <div class="reply {% if answer.level != 'ok' %}berry{% endif %}">
+      <p class="small muted" style="margin-bottom:4px">Bạn hỏi: {{ answer.question }}</p>
+      <p style="margin-bottom:6px">{{ answer.summary }}</p>
+      {% if answer.actions %}<ul>{% for a in answer.actions %}<li>{{ a }}</li>{% endfor %}</ul>{% endif %}
+      {% if answer.level == 'ok' %}<p class="disclaimer">{{ disclaimer }}</p>{% endif %}
+    </div>
+  {% endif %}
+</section>
+{% endif %}
+{% endblock %}

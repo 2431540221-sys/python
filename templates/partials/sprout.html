@@ -1,0 +1,32 @@
+<svg class="sprout" viewBox="0 0 200 200" role="img" aria-label="Cây Mầm giai đoạn {{ stage }}">
+  <ellipse class="soil" cx="100" cy="178" rx="66" ry="16"/>
+  {% if stage == 0 %}
+    <ellipse class="seed" cx="100" cy="166" rx="10" ry="6"/>
+  {% else %}
+    {% if stage == 1 %}
+      <path class="stem" d="M100 172V138"/>
+      <path class="leaf" d="M100 146C86 146 78 134 80 124C92 126 100 134 100 146Z"/>
+      <path class="leaf light" d="M100 146C114 146 122 134 120 124C108 126 100 134 100 146Z"/>
+    {% elif stage == 2 %}
+      <path class="stem" d="M100 172V112"/>
+      <path class="leaf" d="M100 142C80 142 68 124 70 108C88 110 100 122 100 142Z"/>
+      <path class="leaf light" d="M100 142C120 142 132 124 130 108C112 110 100 122 100 142Z"/>
+      <path class="leaf" d="M100 122C90 122 84 114 86 106C94 108 100 114 100 122Z"/>
+    {% elif stage == 3 %}
+      <path class="stem" d="M100 172V84"/>
+      <path class="leaf" d="M100 152C80 152 68 134 70 118C88 120 100 132 100 152Z"/>
+      <path class="leaf light" d="M100 152C120 152 132 134 130 118C112 120 100 132 100 152Z"/>
+      <path class="leaf light" d="M100 124C82 124 72 110 74 96C90 98 100 108 100 124Z"/>
+      <path class="leaf" d="M100 124C118 124 128 110 126 96C110 98 100 108 100 124Z"/>
+      <path class="leaf" d="M100 98C90 98 84 90 86 82C94 84 100 90 100 98Z"/>
+    {% else %}
+      <path class="stem" d="M100 172V74"/>
+      <path class="leaf" d="M100 154C80 154 68 136 70 120C88 122 100 134 100 154Z"/>
+      <path class="leaf light" d="M100 154C120 154 132 136 130 120C112 122 100 134 100 154Z"/>
+      <path class="leaf light" d="M100 128C82 128 72 114 74 100C90 102 100 112 100 128Z"/>
+      <path class="leaf" d="M100 128C118 128 128 114 126 100C110 102 100 112 100 128Z"/>
+      <g class="bud"><circle cx="100" cy="52" r="8"/><circle cx="100" cy="36" r="8"/><circle cx="116" cy="52" r="8"/><circle cx="84" cy="52" r="8"/><circle cx="100" cy="68" r="8"/></g>
+      <circle cx="100" cy="52" r="7" fill="#8a5e00"/>
+    {% endif %}
+  {% endif %}
+</svg>

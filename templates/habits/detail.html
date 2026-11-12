@@ -1,0 +1,36 @@
+{% extends "base.html" %}
+{% block title %}{{ habit.name }}{% endblock %}
+{% block content %}
+<div class="page-head">
+  <div><h1>{{ habit.name }}</h1>{% if habit.description %}<p>{{ habit.description }}</p>{% endif %}</div>
+  <div class="btn-row">
+    <a class="btn ghost" href="{% url 'habit_update' habit.pk %}">Sửa</a>
+    <a class="btn ghost" href="{% url 'habit_delete' habit.pk %}">Xóa</a>
+  </div>
+</div>
+<div class="detail-stats">
+  <div><b>{{ stats.current_streak }}</b><span class="muted small">chuỗi hiện tại (ngày)</span></div>
+  <div><b>{{ stats.longest_streak }}</b><span class="muted small">chuỗi dài nhất</span></div>
+  <div><b>{{ stats.week_done }}/{{ stats.week_target }}</b><span class="muted small">tuần này</span></div>
+  <div><b>{{ stats.total_done }}</b><span class="muted small">tổng số ngày đã làm</span></div>
+</div>
+{% if stats.streak_goal %}
+<section class="panel">
+  <h2>Mục tiêu chuỗi {{ stats.streak_goal }} ngày</h2>
+  <div class="progress" role="progressbar" aria-valuenow="{{ stats.goal_percent }}" aria-valuemin="0" aria-valuemax="100"><i style="width:{{ stats.goal_percent }}%"></i></div>
+  <p class="small muted" style="margin-top:8px">{% if stats.goal_reached %}Bạn đã đạt mục tiêu. Tuyệt vời!{% else %}Còn {{ stats.goal_remaining }} ngày liên tiếp nữa để đạt mục tiêu (hiện tại {{ stats.current_streak }}).{% endif %}</p>
+</section>
+{% endif %}
+<section class="panel">
+  <h2>Lịch 5 tuần gần nhất</h2>
+  <p class="small muted">Bấm vào một ngày để đánh dấu hoặc bỏ đánh dấu (kể cả ngày đã qua). Ô viền vàng là hôm nay.</p>
+  <div class="calendar">
+    {% for d in calendar %}
+      <form method="post" action="{% url 'habit_toggle' habit.pk %}">{% csrf_token %}
+        <input type="hidden" name="date" value="{{ d.date|date:'Y-m-d' }}"><input type="hidden" name="next" value="detail">
+        <button type="submit" class="{% if d.done %}done{% endif %} {% if d.is_today %}today{% endif %}" aria-pressed="{% if d.done %}true{% else %}false{% endif %}" title="{{ d.date|date:'d/m/Y' }}">{{ d.date|date:"j" }}</button>
+      </form>
+    {% endfor %}
+  </div>
+</section>
+{% endblock %}
