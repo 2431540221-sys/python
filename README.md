@@ -1,114 +1,84 @@
-# Mầm Wellbeing — Nhóm 1, Đề tài WEB 10
+# Mầm Wellbeing
 
-Ứng dụng theo dõi thói quen và wellbeing có AI coach nhẹ. Đây là **một web Django duy nhất** gộp công việc của cả 5 thành viên, dùng chung một giao diện (màu xanh thông, chữ Be Vietnam Pro, cây "Mầm" lớn dần theo chuỗi thói quen).
+Ứng dụng web theo dõi thói quen và wellbeing, tích hợp AI coach tùy chọn.
 
-## Chức năng theo từng task (đối chiếu với yêu cầu của thầy)
+## Chức năng theo task
 
-| Task | Yêu cầu của thầy | Có trong web | Nằm ở đâu |
-|---|---|---|---|
-| **1** Auth, phân quyền, bảo vệ dữ liệu | Đăng ký/đăng nhập **JWT** | `/accounts/register/`, `/accounts/login/` (JWT trong cookie HttpOnly) và `POST /api/auth/register`, `login`, `refresh` (Bearer token) | `accounts/tokens.py`, `middleware.py`, `views.py`, `api.py` |
-| | Băm mật khẩu | PBKDF2-SHA256 của Django; đổi mật khẩu thì token cũ vô hiệu | `config/settings.py`, `accounts/tokens.py` |
-| | Role user/admin | Trường `role`; admin có trang `/admin-stats/` | `accounts/models.py` |
-| | Mã hóa nội dung journal | Fernet (AES) trong `EncryptedTextField`; trong database chỉ là chuỗi mã hóa | `accounts/crypto.py` |
-| | API xóa/xuất dữ liệu cá nhân | `GET /api/me/export/`, `DELETE /api/me/data/`, `DELETE /api/me/`; có cả trang `/privacy/` | `accounts/api.py`, `services.py` |
-| | Demo: A không đọc được dữ liệu B; admin chỉ xem thống kê ẩn danh | Dữ liệu của người khác trả **404**; `/api/admin/stats/` chỉ có số tổng hợp (không tên, email, journal) | mọi view lọc theo `request.user` |
-| **2** Habit tracker | Bảng habit/log, CRUD | `/habits/` (thêm, sửa, xóa, chi tiết, lịch 5 tuần bấm để tick bù) | `habits/` |
-| | Hàm streak hiện tại và dài nhất | `calculate_streaks()` | `habits/services.py` |
-| | Job nhắc nhở theo giờ | APScheduler chạy mỗi phút + lệnh `send_reminders` | `habits/scheduler.py`, `services.py` |
-| | Demo: tick 7 ngày liên tiếp, bỏ 1 ngày thì streak về 0 | Xem "Kịch bản demo" bên dưới | `habits/tests.py` |
-| **3** Mood check-in, journal riêng tư | Form check-in (mood 1–5, giờ ngủ, hoạt động), lưu log theo ngày | `/checkin/` (mỗi ngày một bản ghi, check-in lại thì cập nhật), lịch sử `/history/` | `tracking/` |
-| | Journal chỉ chủ sở hữu xem | `/journal/` (CRUD + tìm kiếm) | `tracking/views.py` |
-| | Demo: 14 ngày dữ liệu mẫu và xem lại lịch sử | Nút "Nạp dữ liệu mẫu" ở `/privacy/` hoặc lệnh `load_demo_data` | `accounts/demo.py` |
-| **4** Dashboard xu hướng, notification | API tổng hợp theo tuần/tháng | `GET /api/stats/?period=week` hoặc `month` | `insights/services.py`, `api.py` |
-| | Biểu đồ đường/cột mood–giấc ngủ–habit (Plotly) | Dashboard `/dashboard/`, chuyển 7/30 ngày và theo ngày/theo tuần | `static/js/dashboard.js` |
-| | Thông báo khi sắp mất streak | Từ 18h, thói quen có chuỗi mà chưa làm sẽ có thông báo (1 lần/ngày) + chuông trên menu | `insights/services.py` |
-| | Gửi thông báo qua email và push | Nhắc nhở, cảnh báo và báo cáo được lưu trong app, gửi email nếu có SMTP, và gửi Web Push tới trình duyệt đã đăng ký | `habits/services.py`, `insights/views.py`, `static/js/service-worker.js` |
-| | Chỉ số wellbeing tham khảo | Dashboard lưu index 0-100 theo ngày; đây là xu hướng tự theo dõi, chưa được kiểm chứng y tế. Giảm ít nhất 15 điểm so với 7 ngày trước, với tối thiểu 3 check-in mỗi giai đoạn, có thể kích hoạt lời nhắc hỗ trợ hàng tuần | `insights/models.py`, `insights/services.py` |
-| | Demo: dashboard cá nhân với dữ liệu 30 ngày | Nạp dữ liệu mẫu 30 ngày rồi mở `/dashboard/` | |
-| **5** AI coach nhẹ, deploy | Prompt tóm tắt tuần từ log, gợi ý mục tiêu nhỏ | `/coach/` và `POST /api/coach/weekly/` | `coach/prompts.py`, `service.py` |
-| | Bộ lọc từ khóa nhạy cảm kèm câu từ chối chẩn đoán y tế | Chặn **trước** khi gửi cho AI và lọc **đầu ra** của AI | `coach/safety.py` |
-| | Deploy Render/Railway | `render.yaml`, `build.sh`, gunicorn, whitenoise | mục Deploy |
-| | Demo: link online, AI trả bản tóm tắt có disclaimer | Disclaimer luôn kèm trong trang và trong JSON | |
+| Task | Chức năng |
+|---|---|
+| **1. Tài khoản & quyền riêng tư** | Đăng ký/đăng nhập JWT; phân quyền user/admin; mật khẩu được băm, journal được mã hóa; xuất hoặc xóa dữ liệu cá nhân. Admin chỉ xem thống kê ẩn danh. |
+| **2. Theo dõi thói quen** | Tạo, sửa, xóa thói quen; đánh dấu hoàn thành theo ngày; theo dõi streak và đặt giờ nhắc. |
+| **3. Check-in & journal** | Ghi nhận mood, giấc ngủ và hoạt động; xem lịch sử; viết và tìm kiếm journal riêng tư. |
+| **4. Dashboard & thông báo** | Xem xu hướng mood, giấc ngủ và thói quen theo tuần/tháng; nhận cảnh báo streak, thông báo trong ứng dụng, email hoặc Web Push. |
+| **5. AI coach & triển khai** | Tạo tóm tắt tuần và gợi ý mục tiêu nhỏ; có bộ lọc an toàn, yêu cầu đồng ý trước khi dùng AI và luôn kèm disclaimer. Hỗ trợ triển khai trên Render. |
 
-## Chạy trên máy (PyCharm / Windows)
+## Công nghệ
 
-1. Mở thư mục `mam_wellbeing` bằng PyCharm, tạo môi trường ảo (Virtualenv).
-2. Mở Terminal của PyCharm và gõ lần lượt:
-   ```
-   pip install -r requirements.txt
-   python manage.py migrate
-   python manage.py runserver
-   ```
-3. Mở http://127.0.0.1:8000/
+- **Backend:** Python 3.12, Django, REST API JSON, JWT.
+- **Dữ liệu:** SQLite khi chạy local; PostgreSQL trên Render.
+- **Giao diện:** Django Templates, JavaScript, Plotly.
+- **Bảo mật:** PBKDF2, mã hóa journal bằng Fernet.
+- **Triển khai & tác vụ:** Gunicorn, WhiteNoise, APScheduler.
+- **Tích hợp tùy chọn:** Gemini cho AI coach; SMTP và Web Push cho thông báo.
 
-Nếu chỉ muốn dữ liệu minh họa, chạy riêng `python manage.py load_demo_data` trên môi trường demo. Không nạp dữ liệu giả vào tài khoản người dùng thật.
+## Chạy project local
 
-Tài khoản demo (do `load_demo_data` tạo):
+Yêu cầu: Python 3.12 trở lên.
 
-| Tài khoản | Mật khẩu | Vai trò |
-|---|---|---|
-| `usera`, `userb`, `userc` | `Demo@12345` | người dùng (đều có sẵn 30 ngày dữ liệu) |
-| `admin` | `Admin@12345` | quản trị viên |
-
-Chạy bộ kiểm thử: `python manage.py test`. Dữ liệu mô phỏng được tạo trong test database tạm và không ghi vào database người dùng.
-
-## Kịch bản demo cho thầy
-
-**Task 1, phân quyền:** đăng nhập `usera`, vào `/journal/` thấy bài của A. Mở thẳng link bài của B (ví dụ `/journal/<id của B>/`) sẽ ra "Không tìm thấy". Đăng nhập `admin`, mở "Thống kê ẩn danh": chỉ có con số.
-Bằng API:
+```powershell
+python -m venv .venv
+.\.venv\Scripts\Activate.ps1
+pip install -r requirements.txt
+python manage.py migrate
+python manage.py runserver
 ```
-curl -X POST http://127.0.0.1:8000/api/auth/login/ -H "Content-Type: application/json" -d "{\"username\":\"userb\",\"password\":\"Demo@12345\"}"
-curl http://127.0.0.1:8000/api/journals/<id_của_A>/ -H "Authorization: Bearer <access_của_B>"     # -> 404
-```
-Mã hóa: mở `db.sqlite3`, bảng `tracking_journalentry`, cột `content` là chuỗi dạng `gAAAA...`.
 
-**Task 2, streak:** tạo thói quen mới, vào trang chi tiết. Bấm **hôm nay**, rồi bấm lùi dần các ngày trước trên lịch: chuỗi tăng 1, 2, … 7. Bỏ cả hôm qua lẫn hôm nay thì chuỗi hiện tại về 0 (chuỗi dài nhất vẫn được giữ). Dữ liệu mẫu có sẵn ba tình huống: "Đi bộ 20 phút" (chuỗi 10), "Uống đủ 2 lít nước" (sắp mất chuỗi), "Đọc sách 15 phút" (đã mất chuỗi, hiện 0). Nhắc nhở theo giờ: đặt giờ nhắc sau hiện tại 1–2 phút rồi chờ, scheduler sẽ tạo thông báo (chuông trên menu).
+Mở [http://127.0.0.1:8000/](http://127.0.0.1:8000/). Tạo tài khoản tại `/accounts/register/`; có thể tạo tài khoản quản trị bằng `python manage.py createsuperuser`.
 
-**Task 3, check-in:** `/checkin/` rồi `/history/`. Thử nhập mood 6, giờ ngủ 25 hoặc ngày tương lai: form báo lỗi.
+Tùy chọn:
 
-**Task 4, dashboard:** `/dashboard/` với 30 ngày dữ liệu. Thông báo sắp mất chuỗi xuất hiện từ 18h; muốn thử ngay thì đặt biến môi trường `STREAK_RISK_FROM_HOUR=0`.
+- Nạp dữ liệu demo: `python manage.py load_demo_data`. Tài khoản mẫu: `usera`, `userb`, `userc` / `Demo@12345`; quản trị viên: `admin` / `Admin@12345`.
+- Chạy kiểm thử: `python manage.py test`.
 
-**Task 5, AI coach:** `/coach/` rồi "Tạo tóm tắt tuần này". Hỏi thử "Mình có bị trầm cảm không?" sẽ nhận câu từ chối chẩn đoán, câu hỏi này không được gửi cho AI. Đầu ra nào chứa chẩn đoán/thuốc cũng bị loại.
+Chỉ nạp dữ liệu demo ở môi trường thử nghiệm; không dùng các mật khẩu mẫu trên hệ thống thật.
 
-## API (JSON, xác thực `Authorization: Bearer <access_token>`)
+## Tổng hợp API
 
-| Phương thức | Đường dẫn | Mô tả |
+Các API nằm dưới `/api/`. Trừ đăng ký, đăng nhập và làm mới token, yêu cầu xác thực bằng `Authorization: Bearer <access_token>`.
+
+| Phương thức | Endpoint | Chức năng |
 |---|---|---|
-| POST | `/api/auth/register/`, `/api/auth/login/`, `/api/auth/refresh/` | đăng ký, đăng nhập, làm mới token |
-| GET, DELETE | `/api/me/` | thông tin của tôi / xóa tài khoản (gửi `{"password": "..."}`) |
-| GET | `/api/me/export/` | xuất toàn bộ dữ liệu của tôi |
-| DELETE | `/api/me/data/` | xóa dữ liệu, giữ tài khoản |
-| GET | `/api/admin/stats/` | thống kê ẩn danh (chỉ role admin) |
-| GET, POST | `/api/habits/` | danh sách / tạo thói quen |
-| GET, PUT, DELETE | `/api/habits/<id>/` | chi tiết, sửa, xóa |
-| POST | `/api/habits/<id>/check/` | tick / bỏ tick một ngày |
-| GET, POST | `/api/checkins/` | check-in theo ngày |
-| GET, POST | `/api/journals/` | danh sách / tạo journal |
-| GET, PUT, DELETE | `/api/journals/<id>/` | chi tiết, sửa, xóa journal |
-| GET | `/api/stats/?period=week` hoặc `month` | tổng hợp xu hướng |
-| GET | `/api/notifications/` | thông báo |
-| GET, POST | `/api/coach/weekly/` | xem / tạo tóm tắt tuần của AI coach |
+| `POST` | `/api/auth/register/`, `/api/auth/login/`, `/api/auth/refresh/` | Đăng ký, đăng nhập, làm mới access token |
+| `GET`, `DELETE` | `/api/me/` | Xem thông tin; xóa tài khoản (cần mật khẩu) |
+| `GET` | `/api/me/export/` | Xuất dữ liệu cá nhân |
+| `DELETE` | `/api/me/data/` | Xóa dữ liệu nhưng giữ tài khoản |
+| `GET` | `/api/admin/stats/` | Thống kê ẩn danh dành cho admin |
+| `GET`, `POST` | `/api/habits/`, `/api/checkins/`, `/api/journals/` | Liệt kê hoặc tạo dữ liệu |
+| `GET`, `PUT`, `DELETE` | `/api/habits/<id>/`, `/api/journals/<id>/` | Xem, sửa, xóa thói quen hoặc journal |
+| `POST` | `/api/habits/<id>/check/` | Đánh dấu hoặc bỏ đánh dấu hoàn thành |
+| `GET` | `/api/stats/?period=week` hoặc `month` | Thống kê theo tuần hoặc tháng |
+| `GET` | `/api/notifications/` | Danh sách thông báo |
+| `GET`, `POST` | `/api/coach/weekly/` | Xem hoặc tạo tóm tắt tuần |
 
-## Deploy lên Render
+## Triển khai trên Render
 
-1. Đẩy project lên GitHub (`.gitignore` đã loại `db.sqlite3`).
-2. Render → **New → Blueprint** → chọn repo. Render đọc `render.yaml`, tạo web service và database Postgres.
-3. Biến môi trường (đã khai báo trong `render.yaml`): `SECRET_KEY` và `JOURNAL_ENCRYPTION_KEY` tự sinh; `DEBUG=0`; `DATABASE_URL` tự nối với database. Trong Render → service → **Environment**, điền các biến `sync: false`:
-   - `LOAD_DEMO=1` nếu muốn có sẵn tài khoản demo. **Nhớ tắt hoặc xóa các tài khoản này sau khi demo**, vì mật khẩu được ghi công khai ở trên.
-   - Email SMTP (ví dụ Gmail): `EMAIL_HOST=smtp.gmail.com`, `EMAIL_PORT=587`, `EMAIL_USE_TLS=1`, `EMAIL_USE_SSL=0`, `EMAIL_HOST_USER` là địa chỉ Gmail, `EMAIL_HOST_PASSWORD` là **Google App Password** (không phải mật khẩu đăng nhập), và `DEFAULT_FROM_EMAIL` là địa chỉ gửi. Bật xác minh 2 bước rồi tạo App Password trong tài khoản Google. Nhà cung cấp khác cần dùng host/port/TLS tương ứng.
-   - AI coach: đặt `GEMINI_API_KEY` bằng API key từ Google AI Studio; `GEMINI_MODEL` mặc định `gemini-3.8-flash`. Key được đọc bởi `coach/llm.py`, không ghi key vào repository. Không cấu hình key thì dùng bộ luật dự phòng.
-   - Web Push: chạy `python manage.py generate_vapid_keys` trong môi trường local, nhập hai giá trị tương ứng vào `VAPID_PUBLIC_KEY` và `VAPID_PRIVATE_KEY` trên Render, rồi đặt `VAPID_CLAIMS_EMAIL=mailto:email-của-bạn`. Giữ private key kín và ổn định. Web Push cần HTTPS và mỗi người dùng phải cấp quyền trên trình duyệt của họ.
-   - `WELLBEING_NUDGE_FROM_HOUR` mặc định `20` theo múi giờ ứng dụng; `WELLBEING_NUDGE_DROP_POINTS` mặc định `15`. Đây là ngưỡng nhắc nhở hỗ trợ, không phải ngưỡng sức khỏe.
-4. Build xong, Render cung cấp URL service dạng `https://<service-name>.onrender.com`; dùng URL thực tế của service để kiểm tra và chia sẻ.
+Project có sẵn [Blueprint cấu hình](render.yaml) và script [build.sh](build.sh). Để triển khai:
 
-Lưu ý: kiểm tra lại tên gói (plan) free của web service và database trong tài liệu Render trước khi deploy, vì gói free có thể thay đổi. Web service gói free sẽ "ngủ" khi không có truy cập nên lần mở đầu chậm, và scheduler nhắc nhở chỉ chạy khi service đang thức.
+1. Đẩy mã nguồn lên GitHub.
+2. Mở [Render Blueprint](https://dashboard.render.com/blueprints/new), kết nối repository và xác nhận tạo dịch vụ. Blueprint cấu hình web service `mam-wellbeing` và PostgreSQL.
+3. Chờ build và migrate hoàn tất. URL dự kiến theo tên service là [https://mam-wellbeing.onrender.com](https://mam-wellbeing.onrender.com); dùng URL thực tế trong Render Dashboard nếu tên này đã được sử dụng hoặc ứng dụng chưa được deploy.
+4. Trong **Environment**, bổ sung các biến tùy chọn nếu cần:
+   - `GEMINI_API_KEY`: bật Gemini; nếu không cấu hình, coach dùng bộ luật dự phòng.
+   - `EMAIL_HOST_USER`, `EMAIL_HOST_PASSWORD`, `DEFAULT_FROM_EMAIL`: cấu hình SMTP để gửi email.
+   - `VAPID_PUBLIC_KEY`, `VAPID_PRIVATE_KEY`, `VAPID_CLAIMS_EMAIL`: cấu hình Web Push. Có thể tạo khóa bằng `python manage.py generate_vapid_keys`.
+   - `LOAD_DEMO=1`: nạp tài khoản và dữ liệu demo; tắt hoặc xóa sau khi trình diễn.
 
-## Ghi chú kỹ thuật
+`SECRET_KEY`, `JOURNAL_ENCRYPTION_KEY`, `DATABASE_URL` và các thiết lập cơ bản đã được khai báo trong Blueprint. Kiểm tra gói dịch vụ Render hiện hành trước khi triển khai vì chính sách/gói miễn phí có thể thay đổi.
 
-- **Không dùng `django.contrib.admin`** để quản trị viên không thể mở bảng dữ liệu cá nhân. Tạo admin bằng `python manage.py createsuperuser` (tự có role admin).
-- Cookie JWT chỉ đọc được API bằng GET (để biểu đồ gọi API); các API ghi dữ liệu bắt buộc header Bearer nên không bị tấn công CSRF.
-- Đăng nhập sai 5 lần sẽ bị khóa 15 phút.
-- Thống kê ẩn danh chỉ hiển thị khi có từ 3 người dùng trở lên (`MIN_USERS_FOR_ADMIN_STATS`).
-- **Giữ cố định `JOURNAL_ENCRYPTION_KEY`** (hoặc `SECRET_KEY` nếu không đặt riêng). Đổi khóa thì journal cũ không giải mã được.
-- Khi có Gemini và người dùng đồng ý, AI coach nhận số liệu check-in, trạng thái thói quen và câu hỏi người dùng chủ động gửi; không tự động gửi journal, tên thói quen, username hay email. Câu hỏi được gửi nguyên văn nên tránh nhập thông tin nhận dạng. Bộ lọc cục bộ có thêm mẫu diễn đạt gián tiếp và phản hồi thận trọng, nhưng không thể bảo đảm nhận diện mọi cách diễn đạt hoặc thay thế hỗ trợ chuyên môn.
-- Phần gọi Gemini (`coach/llm.py`) chưa được kiểm thử với API key thật; mọi lỗi sẽ tự quay về bộ luật dự phòng. Tên mô hình đặt qua `GEMINI_MODEL`; kiểm tra model đang được hỗ trợ trước khi đổi cấu hình.
+## Lưu ý
+
+- Không đưa secret/API key vào Git. Giữ cố định `JOURNAL_ENCRYPTION_KEY`; thay khóa có thể khiến journal đã mã hóa không đọc được.
+- Render gói miễn phí có thể đưa service vào trạng thái ngủ khi ít truy cập; lần mở đầu có thể chậm và scheduler chỉ chạy khi service hoạt động.
+- Email và Web Push cần cấu hình riêng; Web Push yêu cầu HTTPS và người dùng cấp quyền trên trình duyệt.
+- AI coach chỉ hỗ trợ tự theo dõi, không chẩn đoán hay thay thế tư vấn y tế. Tránh nhập thông tin định danh vào câu hỏi gửi cho AI.
+- Đăng nhập sai nhiều lần sẽ bị giới hạn tạm thời. API chỉ trả dữ liệu thuộc tài khoản đang đăng nhập; truy cập dữ liệu người khác trả về `404`.
