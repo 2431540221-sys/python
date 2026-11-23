@@ -1,8 +1,12 @@
 """Task 1 - kiểm thử: JWT, mật khẩu băm, phân quyền, mã hóa journal, API xóa/xuất, thống kê ẩn danh."""
 import json
+import os
 from datetime import timedelta
+from io import StringIO
+from unittest.mock import patch
 
 from django.core.cache import cache
+from django.core.management import CommandError, call_command
 from django.db import connection
 from django.test import TestCase, override_settings
 from django.urls import reverse
@@ -12,6 +16,50 @@ from accounts.tokens import create_access_token, create_refresh_token
 from habits.models import BrowserPushSubscription, Habit
 from insights.models import DailyWellbeingIndex
 from tracking.models import JournalEntry
+
+
+class ResetAccountsCommandTests(TestCase):
+    def test_requires_confirmation_before_deleting_users(self):
+        existing = User.objects.create_user("existing", password="old-password-123")
+        with patch.dict(os.environ, {
+            "ACCOUNT_USER_PASSWORD": "user-password-123",
+            "ACCOUNT_ADMIN_PASSWORD": "admin-password-123",
+        }):
+            with self.assertRaises(CommandError):
+                call_command("reset_accounts")
+        self.assertTrue(User.objects.filter(pk=existing.pk).exists())
+
+    def test_requires_passwords_before_deleting_users(self):
+        existing = User.objects.create_user("existing", password="old-password-123")
+        with patch.dict(os.environ, {"ACCOUNT_USER_PASSWORD": "", "ACCOUNT_ADMIN_PASSWORD": ""}):
+            with self.assertRaises(CommandError):
+                call_command("reset_accounts", confirm=True)
+        self.assertTrue(User.objects.filter(pk=existing.pk).exists())
+
+    def test_recreates_only_user_and_admin_and_clears_user_data(self):
+        user_password = "test-user-password-123"
+        admin_password = "test-admin-password-123"
+        previous_user = User.objects.create_user("previous", password="old-password-123")
+        Habit.objects.create(user=previous_user, name="Old habit")
+        JournalEntry.objects.create(user=previous_user, title="Old journal", content="Private")
+        output = StringIO()
+        with patch.dict(os.environ, {
+            "ACCOUNT_USER_PASSWORD": user_password,
+            "ACCOUNT_ADMIN_PASSWORD": admin_password,
+        }):
+            call_command("reset_accounts", confirm=True, stdout=output)
+
+        users = {user.username: user for user in User.objects.all()}
+        self.assertEqual(set(users), {"nguyenvana", "thaoquyen"})
+        self.assertEqual(users["nguyenvana"].role, User.ROLE_USER)
+        self.assertTrue(users["nguyenvana"].check_password(user_password))
+        self.assertEqual(users["thaoquyen"].role, User.ROLE_ADMIN)
+        self.assertTrue(users["thaoquyen"].is_superuser)
+        self.assertTrue(users["thaoquyen"].check_password(admin_password))
+        self.assertFalse(Habit.objects.exists())
+        self.assertFalse(JournalEntry.objects.exists())
+        self.assertNotIn(user_password, output.getvalue())
+        self.assertNotIn(admin_password, output.getvalue())
 
 
 def bearer(user):
@@ -222,7 +270,7 @@ class SmokeTests(TestCase):
     """Mọi trang chính phải hiển thị được (không lỗi template) cho người đã đăng nhập."""
 
     def test_all_pages_render(self):
-        from accounts.demo import seed_user_data
+        from accounts.sample_data import seed_user_data
 
         user = User.objects.create_user("smoke", password="Matkhau!2026x", consent_ai=True)
         seed_user_data(user, 30)
@@ -243,10 +291,10 @@ class SmokeTests(TestCase):
             self.assertEqual(self.client.get(url).status_code, 200, url)
         self.assertEqual(self.client.get("/khong-ton-tai/").status_code, 404)
 
-    def test_demo_button_and_delete_flow(self):
+    def test_sample_data_button_and_delete_flow(self):
         user = User.objects.create_user("smoke2", password="Matkhau!2026x")
         self.client.post(reverse("login"), {"username": "smoke2", "password": "Matkhau!2026x"})
-        self.client.post(reverse("demo_data"))
+        self.client.post(reverse("sample_data"))
         self.assertEqual(user.checkins.count(), 30)
         self.client.post(reverse("delete_data"))                       # chưa tick xác nhận -> không xóa
         self.assertEqual(user.checkins.count(), 30)

@@ -1,12 +1,8 @@
-"""Tạo dữ liệu mẫu 30 ngày để demo (Task 2, 3, 4)."""
+"""Tạo dữ liệu mẫu cho tài khoản hiện tại."""
 import random
 from datetime import timedelta
 
-from django.contrib.auth import get_user_model
 from django.utils import timezone
-
-DEMO_PASSWORD = "Demo@12345"
-ADMIN_PASSWORD = "Admin@12345"
 
 ACTIVITIES = ["walking", "running", "yoga", "gym", "cycling"]
 
@@ -64,26 +60,3 @@ def seed_user_data(user, days=30):
         if not JournalEntry.objects.filter(user=user, title=title).exists():
             JournalEntry.objects.create(user=user, title=f"{title}", content=f"[{user.username}] {content}", tags=tags)
     return {"habits": len(plans), "checkins": days, "journals": len(entries)}
-
-
-def create_demo_accounts(days=30):
-    """Tạo 3 người dùng + 1 admin để demo phân quyền (user A không đọc được dữ liệu user B)."""
-    User = get_user_model()
-    created = []
-    for username in ("usera", "userb", "userc"):
-        user, was_created = User.objects.get_or_create(
-            username=username, defaults={"role": User.ROLE_USER, "consent_ai": True,
-                                         "email": f"{username}@example.com"},
-        )
-        if was_created:
-            user.set_password(DEMO_PASSWORD)
-            user.save()
-        seed_user_data(user, days)
-        created.append((username, DEMO_PASSWORD))
-    admin, was_created = User.objects.get_or_create(
-        username="admin", defaults={"role": User.ROLE_ADMIN, "email": "admin@example.com"})
-    if was_created:
-        admin.set_password(ADMIN_PASSWORD)
-        admin.save()
-    created.append(("admin", ADMIN_PASSWORD))
-    return created

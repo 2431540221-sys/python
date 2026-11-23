@@ -21,7 +21,7 @@
 - **Triển khai & tác vụ:** Gunicorn, WhiteNoise, APScheduler.
 - **Tích hợp tùy chọn:** Gemini cho AI coach; SMTP và Web Push cho thông báo.
 
-## Chạy project local
+## Chạy local và khởi tạo tài khoản
 
 Yêu cầu: Python 3.12 trở lên.
 
@@ -30,17 +30,16 @@ python -m venv .venv
 .\.venv\Scripts\Activate.ps1
 pip install -r requirements.txt
 python manage.py migrate
+
+$env:ACCOUNT_USER_PASSWORD = Read-Host "Nhập mật khẩu user"
+$env:ACCOUNT_ADMIN_PASSWORD = Read-Host "Nhập mật khẩu admin"
+python manage.py reset_accounts --confirm
 python manage.py runserver
 ```
 
-Mở [http://127.0.0.1:8000/](http://127.0.0.1:8000/). Tạo tài khoản tại `/accounts/register/`; có thể tạo tài khoản quản trị bằng `python manage.py createsuperuser`.
+Lệnh `reset_accounts --confirm` xóa toàn bộ tài khoản hiện có cùng dữ liệu liên quan, rồi tạo một tài khoản user `nguyenvana` và một admin `thaoquyen`. Chỉ chạy khi chủ động muốn làm sạch database. Mật khẩu nhập trong terminal, không lưu vào file hay Git.
 
-Tùy chọn:
-
-- Nạp dữ liệu demo: `python manage.py load_demo_data`. Tài khoản mẫu: `usera`, `userb`, `userc` / `Demo@12345`; quản trị viên: `admin` / `Admin@12345`.
-- Chạy kiểm thử: `python manage.py test`.
-
-Chỉ nạp dữ liệu demo ở môi trường thử nghiệm; không dùng các mật khẩu mẫu trên hệ thống thật.
+Mở [http://127.0.0.1:8000/accounts/login/](http://127.0.0.1:8000/accounts/login/) để đăng nhập. Chạy kiểm thử bằng `python manage.py test`.
 
 ## Tổng hợp API
 
@@ -67,11 +66,14 @@ Project có sẵn [Blueprint cấu hình](render.yaml) và script [build.sh](bui
 1. Đẩy mã nguồn lên GitHub.
 2. Mở [Render Blueprint](https://dashboard.render.com/blueprints/new), kết nối repository và xác nhận tạo dịch vụ. Blueprint cấu hình web service `mam-wellbeing` và PostgreSQL.
 3. Chờ build và migrate hoàn tất. URL dự kiến theo tên service là [https://mam-wellbeing.onrender.com](https://mam-wellbeing.onrender.com); dùng URL thực tế trong Render Dashboard nếu tên này đã được sử dụng hoặc ứng dụng chưa được deploy.
-4. Trong **Environment**, bổ sung các biến tùy chọn nếu cần:
+4. Build chỉ cài dependencies và migrate database; không tự tạo hay xóa tài khoản. Để khởi tạo lại tài khoản trên Render:
+   - Trong **Environment**, đặt `ACCOUNT_USER_PASSWORD` và `ACCOUNT_ADMIN_PASSWORD` với các mật khẩu riêng tư.
+   - Mở **Shell** của service và chạy `python manage.py reset_accounts --confirm`. Lệnh này xóa toàn bộ tài khoản hiện có cùng dữ liệu liên quan trên database Render, rồi tạo user `nguyenvana` và admin `thaoquyen`.
+   - Sau khi chạy thành công, xóa hai biến mật khẩu khỏi **Environment**.
+5. Các tích hợp tùy chọn:
    - `GEMINI_API_KEY`: bật Gemini; nếu không cấu hình, coach dùng bộ luật dự phòng.
    - `EMAIL_HOST_USER`, `EMAIL_HOST_PASSWORD`, `DEFAULT_FROM_EMAIL`: cấu hình SMTP để gửi email.
    - `VAPID_PUBLIC_KEY`, `VAPID_PRIVATE_KEY`, `VAPID_CLAIMS_EMAIL`: cấu hình Web Push. Có thể tạo khóa bằng `python manage.py generate_vapid_keys`.
-   - `LOAD_DEMO=1`: nạp tài khoản và dữ liệu demo; tắt hoặc xóa sau khi trình diễn.
 
 `SECRET_KEY`, `JOURNAL_ENCRYPTION_KEY`, `DATABASE_URL` và các thiết lập cơ bản đã được khai báo trong Blueprint. Kiểm tra gói dịch vụ Render hiện hành trước khi triển khai vì chính sách/gói miễn phí có thể thay đổi.
 

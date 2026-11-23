@@ -17,8 +17,6 @@ services:
         generateValue: true
       - key: JOURNAL_ENCRYPTION_KEY       # giữ cố định: mất khóa này thì journal cũ không giải mã được
         generateValue: true
-      - key: LOAD_DEMO                     # đổi thành "1" nếu muốn có sẵn tài khoản demo (nhớ tắt sau khi demo)
-        value: "0"
       - key: GEMINI_API_KEY                # tùy chọn: không có thì AI coach dùng bộ luật dự phòng
         sync: false
       - key: GEMINI_MODEL

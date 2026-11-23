@@ -6,7 +6,7 @@ from django.test import TestCase
 from django.urls import reverse
 from django.utils import timezone
 
-from accounts.demo import seed_user_data
+from accounts.sample_data import seed_user_data
 from accounts.models import User
 from accounts.tokens import create_access_token
 from tracking.models import DailyCheckin, JournalEntry

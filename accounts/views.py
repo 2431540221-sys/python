@@ -11,8 +11,8 @@ from django.utils.http import url_has_allowed_host_and_scheme
 from django.views.decorators.http import require_POST
 
 from . import security
-from .demo import seed_user_data
 from .forms import LoginForm, RegisterForm
+from .sample_data import seed_user_data
 from .services import admin_statistics, delete_user_data, export_user_data
 from .tokens import create_web_token
 
@@ -118,7 +118,7 @@ def delete_account_view(request):
 
 @login_required
 @require_POST
-def demo_data_view(request):
+def sample_data_view(request):
     seed_user_data(request.user, 30)
     messages.success(request, "Đã nạp dữ liệu mẫu 30 ngày vào tài khoản của bạn.")
     return redirect("dashboard")
