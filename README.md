@@ -37,7 +37,7 @@ python manage.py reset_accounts --confirm
 python manage.py runserver
 ```
 
-Lệnh `reset_accounts --confirm` xóa toàn bộ tài khoản hiện có cùng dữ liệu liên quan, rồi tạo một tài khoản user `nguyenvana` và một admin `thaoquyen`. Chỉ chạy khi chủ động muốn làm sạch database. Mật khẩu nhập trong terminal, không lưu vào file hay Git.
+Lệnh `reset_accounts --confirm` xóa toàn bộ tài khoản hiện có cùng dữ liệu liên quan, rồi tạo một tài khoản user và một admin. Chỉ chạy khi chủ động muốn làm sạch database. Mật khẩu nhập trong terminal, không lưu vào file hay Git.
 
 Mở [http://127.0.0.1:8000/accounts/login/](http://127.0.0.1:8000/accounts/login/) để đăng nhập. Chạy kiểm thử bằng `python manage.py test`.
 
@@ -68,7 +68,7 @@ Project có sẵn [Blueprint cấu hình](render.yaml) và script [build.sh](bui
 3. Chờ build và migrate hoàn tất. URL dự kiến theo tên service là [https://mam-wellbeing.onrender.com](https://mam-wellbeing.onrender.com); dùng URL thực tế trong Render Dashboard nếu tên này đã được sử dụng hoặc ứng dụng chưa được deploy.
 4. Build chỉ cài dependencies và migrate database; không tự tạo hay xóa tài khoản. Để khởi tạo lại tài khoản trên Render:
    - Trong **Environment**, đặt `ACCOUNT_USER_PASSWORD` và `ACCOUNT_ADMIN_PASSWORD` với các mật khẩu riêng tư.
-   - Mở **Shell** của service và chạy `python manage.py reset_accounts --confirm`. Lệnh này xóa toàn bộ tài khoản hiện có cùng dữ liệu liên quan trên database Render, rồi tạo user `nguyenvana` và admin `thaoquyen`.
+   - Mở **Shell** của service và chạy `python manage.py reset_accounts --confirm`. Lệnh này xóa toàn bộ tài khoản hiện có cùng dữ liệu liên quan trên database Render, rồi tạo user và admin.
    - Sau khi chạy thành công, xóa hai biến mật khẩu khỏi **Environment**.
 5. Các tích hợp tùy chọn:
    - `GEMINI_API_KEY`: bật Gemini; nếu không cấu hình, coach dùng bộ luật dự phòng.
