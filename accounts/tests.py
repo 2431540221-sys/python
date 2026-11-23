@@ -9,7 +9,8 @@ from django.urls import reverse
 
 from accounts.models import User
 from accounts.tokens import create_access_token, create_refresh_token
-from habits.models import Habit
+from habits.models import BrowserPushSubscription, Habit
+from insights.models import DailyWellbeingIndex
 from tracking.models import JournalEntry
 
 
@@ -181,16 +182,30 @@ class PrivacyIsolationTests(TestCase):
         self.assertNotContains(r, "userb")
 
     def test_export_my_data(self):
+        DailyWellbeingIndex.objects.create(user=self.b, score=75, mood_score=80)
+        BrowserPushSubscription.objects.create(
+            user=self.b, endpoint="https://fcm.googleapis.com/fcm/send/export",
+            p256dh="public-key", auth="auth-secret",
+        )
         r = self.client.get("/api/me/export/", **bearer(self.b))
         data = json.loads(r.content)
         self.assertEqual(data["journals"][0]["content"], "Bí mật rất riêng của B")
         self.assertEqual(data["habits"][0]["name"], "Habit của B")
+        self.assertEqual(data["wellbeing_indices"][0]["score"], 75)
+        self.assertIn("fcm.googleapis.com", data["push_subscriptions"][0]["endpoint"])
         self.assertIn("attachment", r["Content-Disposition"])
 
     def test_delete_my_data_keeps_account(self):
+        DailyWellbeingIndex.objects.create(user=self.b, score=75)
+        BrowserPushSubscription.objects.create(
+            user=self.b, endpoint="https://fcm.googleapis.com/fcm/send/delete",
+            p256dh="public-key", auth="auth-secret",
+        )
         r = self.client.delete("/api/me/data/", **bearer(self.b))
         self.assertEqual(r.json()["deleted"]["journals"], 1)
         self.assertFalse(JournalEntry.objects.filter(user=self.b).exists())
+        self.assertFalse(DailyWellbeingIndex.objects.filter(user=self.b).exists())
+        self.assertFalse(BrowserPushSubscription.objects.filter(user=self.b).exists())
         self.assertTrue(User.objects.filter(pk=self.b.pk).exists())
 
     def test_delete_account_needs_password(self):

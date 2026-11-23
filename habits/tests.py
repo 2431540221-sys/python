@@ -1,13 +1,15 @@
 """Task 2 - kiểm thử streak, CRUD thói quen và nhắc nhở theo giờ."""
 from datetime import date, datetime, time, timedelta
+from unittest import mock
 
-from django.test import TestCase
+from django.test import TestCase, override_settings
 from django.urls import reverse
 from django.utils import timezone
+from django.core import mail
 
 from accounts.models import User
-from habits.models import Habit, HabitLog, Notification
-from habits.services import calculate_streaks, get_habit_stats, send_due_reminders
+from habits.models import BrowserPushSubscription, Habit, HabitLog, Notification
+from habits.services import calculate_streaks, deliver_notification, get_habit_stats, send_due_reminders
 
 D = date(2026, 11, 5)
 
@@ -99,11 +101,15 @@ class ReminderTests(TestCase):
         return timezone.make_aware(datetime.combine(timezone.localdate(), time(hour, minute)))
 
     def test_reminder_sent_once_when_due(self):
+        self.user.email = "a@example.com"
+        self.user.save(update_fields=["email"])
         Habit.objects.create(user=self.user, name="Uống nước", reminder_enabled=True, reminder_time=time(8, 0))
         self.assertEqual(send_due_reminders(self.now_at(7, 59)), 0)       # chưa tới giờ
         self.assertEqual(send_due_reminders(self.now_at(8, 1)), 1)        # tới giờ
         self.assertEqual(send_due_reminders(self.now_at(8, 5)), 0)        # không nhắc lần 2 trong ngày
         self.assertEqual(Notification.objects.filter(kind="reminder").count(), 1)
+        self.assertEqual(len(mail.outbox), 1)
+        self.assertEqual(mail.outbox[0].to, ["a@example.com"])
 
     def test_no_reminder_if_already_done_today(self):
         habit = Habit.objects.create(user=self.user, name="Uống nước", reminder_enabled=True, reminder_time=time(8, 0))
@@ -113,3 +119,40 @@ class ReminderTests(TestCase):
     def test_disabled_reminder_not_sent(self):
         Habit.objects.create(user=self.user, name="X", reminder_enabled=False, reminder_time=time(8, 0))
         self.assertEqual(send_due_reminders(self.now_at(9)), 0)
+
+
+class PushDeliveryTests(TestCase):
+    def test_notification_is_sent_to_registered_browser(self):
+        user = User.objects.create_user("push", password="Matkhau!2026x")
+        notification = Notification.objects.create(user=user, title="Nhắc nhở", body="Nội dung")
+        subscription = BrowserPushSubscription.objects.create(
+            user=user, endpoint="https://fcm.googleapis.com/fcm/send/example",
+            p256dh="public-key", auth="auth-secret",
+        )
+
+        with override_settings(
+            VAPID_PRIVATE_KEY="private-key",
+            VAPID_CLAIMS_EMAIL="mailto:admin@example.com",
+        ), mock.patch("pywebpush.webpush") as webpush:
+            deliver_notification(notification)
+
+        self.assertEqual(webpush.call_count, 1)
+        self.assertEqual(webpush.call_args.kwargs["subscription_info"]["endpoint"], subscription.endpoint)
+        self.assertIn("Nhắc nhở", webpush.call_args.kwargs["data"])
+
+    def test_push_is_attempted_even_when_smtp_is_unavailable(self):
+        user = User.objects.create_user("pushmail", password="Matkhau!2026x", email="test@example.com")
+        notification = Notification.objects.create(user=user, title="Nhắc nhở", body="Nội dung")
+        BrowserPushSubscription.objects.create(
+            user=user, endpoint="https://fcm.googleapis.com/fcm/send/example",
+            p256dh="public-key", auth="auth-secret",
+        )
+
+        with override_settings(
+            VAPID_PRIVATE_KEY="private-key",
+            VAPID_CLAIMS_EMAIL="mailto:admin@example.com",
+        ), mock.patch("habits.services.send_mail", side_effect=OSError("SMTP unavailable")), \
+                mock.patch("pywebpush.webpush") as webpush:
+            deliver_notification(notification)
+
+        webpush.assert_called_once()

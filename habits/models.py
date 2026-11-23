@@ -8,6 +8,7 @@ from django.conf import settings
 from django.core.exceptions import ValidationError
 from django.core.validators import MaxValueValidator, MinValueValidator
 from django.db import models
+from django.db.models import Q
 from django.utils import timezone
 
 
@@ -60,10 +61,12 @@ class Notification(models.Model):
     KIND_REMINDER = "reminder"
     KIND_STREAK_RISK = "streak_risk"
     KIND_COACH = "coach"
+    KIND_WELLBEING = "wellbeing"
     KIND_CHOICES = [
         (KIND_REMINDER, "Nhắc nhở"),
         (KIND_STREAK_RISK, "Sắp mất chuỗi"),
         (KIND_COACH, "AI coach"),
+        (KIND_WELLBEING, "Xu hướng wellbeing"),
     ]
 
     user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="notifications")
@@ -79,8 +82,24 @@ class Notification(models.Model):
         ordering = ["-created_at"]
         constraints = [
             # mỗi loại thông báo chỉ tạo 1 lần/ngày cho mỗi thói quen
-            models.UniqueConstraint(fields=["user", "kind", "habit", "day"], name="one_notification_per_kind_habit_day")
+            models.UniqueConstraint(fields=["user", "kind", "habit", "day"], name="one_notification_per_kind_habit_day"),
+            models.UniqueConstraint(
+                fields=["user", "kind", "day"], condition=Q(habit__isnull=True),
+                name="one_global_notification_per_kind_day",
+            ),
         ]
 
     def __str__(self):
         return self.title
+
+
+class BrowserPushSubscription(models.Model):
+    user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="push_subscriptions")
+    endpoint = models.URLField(max_length=2048, unique=True)
+    p256dh = models.CharField(max_length=200)
+    auth = models.CharField(max_length=100)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    def __str__(self):
+        return f"Push subscription {self.pk} for user {self.user_id}"

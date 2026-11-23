@@ -5,14 +5,89 @@ Logic nghiệp vụ của Task 2 (tách khỏi views để dễ test; Task 4 và
     get_habit_stats(habit)          -> dict số liệu 1 thói quen
     send_due_reminders()            -> job nhắc nhở theo giờ
 """
+import logging
+import json
+import smtplib
 from datetime import timedelta
 
+from django.conf import settings
+from django.core.exceptions import ImproperlyConfigured
 from django.core.mail import send_mail
 from django.utils import timezone
 
-from .models import Habit, HabitLog, Notification
+from .models import BrowserPushSubscription, Habit, HabitLog, Notification
 
 MAX_BACKFILL_DAYS = 60   # cho phép tick bù tối đa 60 ngày trước
+logger = logging.getLogger(__name__)
+
+
+def send_notification_email(notification):
+    """Gửi email cho Notification mới đã tạo; không gửi trùng và bỏ qua nếu thiếu email."""
+    if not notification.user.email:
+        return False
+    try:
+        sent = send_mail(
+            notification.title,
+            notification.body,
+            settings.DEFAULT_FROM_EMAIL,
+            [notification.user.email],
+            fail_silently=False,
+        )
+    except (OSError, ValueError, ImproperlyConfigured, smtplib.SMTPException):
+        logger.exception("Không gửi được email thông báo %s cho người dùng %s", notification.pk, notification.user.pk)
+        return False
+    return bool(sent)
+
+
+def send_notification_push(notification):
+    subscriptions = BrowserPushSubscription.objects.filter(user=notification.user)
+    if not subscriptions.exists():
+        return 0
+    if not settings.VAPID_PRIVATE_KEY:
+        logger.warning("Có thiết bị đăng ký push nhưng VAPID_PRIVATE_KEY chưa được cấu hình.")
+        return 0
+
+    from pywebpush import WebPushException, webpush
+
+    payload = json.dumps({
+        "id": str(notification.pk),
+        "title": notification.title,
+        "body": notification.body,
+        "url": "/notifications/",
+    }, ensure_ascii=False)
+    sent = 0
+    for subscription in subscriptions:
+        try:
+            webpush(
+                subscription_info={
+                    "endpoint": subscription.endpoint,
+                    "keys": {"p256dh": subscription.p256dh, "auth": subscription.auth},
+                },
+                data=payload,
+                vapid_private_key=settings.VAPID_PRIVATE_KEY,
+                vapid_claims={"sub": settings.VAPID_CLAIMS_EMAIL},
+                ttl=60 * 60,
+                timeout=5,
+            )
+        except WebPushException as exc:
+            response = getattr(exc, "response", None)
+            status_code = response.status_code if response is not None else None
+            if status_code in (404, 410):
+                subscription.delete()
+            logger.warning(
+                "Không gửi được push cho subscription %s (HTTP %s)",
+                subscription.pk,
+                status_code or "không rõ",
+                exc_info=True,
+            )
+        else:
+            sent += 1
+    return sent
+
+
+def deliver_notification(notification):
+    send_notification_email(notification)
+    send_notification_push(notification)
 
 
 # ---------------------------------------------------------------- Streak
@@ -148,11 +223,11 @@ def send_due_reminders(now=None):
         else:
             body = f"Đến giờ “{habit.name}” rồi. Bắt đầu một chuỗi mới nào!"
 
-        _, created = Notification.objects.get_or_create(
+        notification, created = Notification.objects.get_or_create(
             user=habit.user, kind=Notification.KIND_REMINDER, habit=habit, day=today,
             defaults={"title": f"Nhắc nhở: {habit.name}", "body": body},
         )
-        if created and habit.user.email:
-            send_mail("Nhắc nhở thói quen", body, None, [habit.user.email], fail_silently=True)
+        if created:
+            deliver_notification(notification)
         sent += int(created)
     return sent

@@ -9,6 +9,9 @@ from django.utils import timezone
 
 def export_user_data(user):
     """Toàn bộ dữ liệu của chính người dùng (kể cả journal đã được giải mã)."""
+    from habits.models import BrowserPushSubscription
+    from insights.models import DailyWellbeingIndex
+
     habits = []
     for habit in user.habits.all().prefetch_related("logs"):
         habits.append({
@@ -16,14 +19,23 @@ def export_user_data(user):
             "description": habit.description,
             "weekly_target": habit.weekly_target,
             "streak_goal": habit.streak_goal,
+            "reminder_enabled": habit.reminder_enabled,
             "reminder_time": habit.reminder_time.strftime("%H:%M") if habit.reminder_time else None,
-            "completed_dates": sorted(log.date.isoformat() for log in habit.logs.all()),
+            "last_reminded_on": habit.last_reminded_on.isoformat() if habit.last_reminded_on else None,
+            "is_active": habit.is_active,
+            "created_at": habit.created_at.isoformat(),
+            "logs": [
+                {"date": log.date.isoformat(), "note": log.note, "created_at": log.created_at.isoformat()}
+                for log in habit.logs.all()
+            ],
         })
     return {
         "exported_at": timezone.now().isoformat(),
         "profile": {
             "username": user.username,
             "email": user.email,
+            "first_name": user.first_name,
+            "last_name": user.last_name,
             "role": user.role,
             "consent_ai": user.consent_ai,
             "date_joined": user.date_joined.isoformat(),
@@ -33,24 +45,40 @@ def export_user_data(user):
             {
                 "date": c.date.isoformat(), "mood": c.mood, "sleep_hours": c.sleep_hours,
                 "activity_type": c.activity_type, "activity_minutes": c.activity_minutes, "note": c.note,
+                "created_at": c.created_at.isoformat(), "updated_at": c.updated_at.isoformat(),
             }
             for c in user.checkins.all()
         ],
         "journals": [
             {
                 "title": j.title, "content": j.content, "tags": j.tags,
-                "created_at": j.created_at.isoformat(),
+                "created_at": j.created_at.isoformat(), "updated_at": j.updated_at.isoformat(),
             }
             for j in user.journals.all()
         ],
         "notifications": [
-            {"kind": n.kind, "title": n.title, "body": n.body, "created_at": n.created_at.isoformat()}
+            {"kind": n.kind, "title": n.title, "body": n.body, "day": n.day.isoformat(),
+             "habit_id": n.habit_id, "is_read": n.is_read, "created_at": n.created_at.isoformat()}
             for n in user.notifications.all()
+        ],
+        "wellbeing_indices": [
+            {
+                "date": index.date.isoformat(), "score": index.score,
+                "mood_score": index.mood_score, "sleep_score": index.sleep_score,
+                "activity_score": index.activity_score, "habit_score": index.habit_score,
+                "coverage_percent": index.coverage_percent,
+            }
+            for index in DailyWellbeingIndex.objects.filter(user=user)
+        ],
+        "push_subscriptions": [
+            {"endpoint": subscription.endpoint, "created_at": subscription.created_at.isoformat()}
+            for subscription in BrowserPushSubscription.objects.filter(user=user)
         ],
         "coach_reports": [
             {
-                "week_end": r.week_end.isoformat(), "summary": r.summary,
+                "week_start": r.week_start.isoformat(), "week_end": r.week_end.isoformat(), "summary": r.summary,
                 "patterns": r.patterns, "goals": r.goals, "actions": r.actions, "source": r.source,
+                "created_at": r.created_at.isoformat(), "updated_at": r.updated_at.isoformat(),
             }
             for r in user.coach_reports.all()
         ],
@@ -59,18 +87,25 @@ def export_user_data(user):
 
 def delete_user_data(user):
     """Xóa dữ liệu cá nhân nhưng giữ lại tài khoản. Trả về số bản ghi đã xóa theo nhóm."""
+    from habits.models import BrowserPushSubscription
+    from insights.models import DailyWellbeingIndex
+
     counts = {
         "habits": user.habits.count(),
         "checkins": user.checkins.count(),
         "journals": user.journals.count(),
         "notifications": user.notifications.count(),
         "coach_reports": user.coach_reports.count(),
+        "wellbeing_indices": DailyWellbeingIndex.objects.filter(user=user).count(),
+        "push_subscriptions": user.push_subscriptions.count(),
     }
     user.habits.all().delete()          # kéo theo habit logs (CASCADE)
     user.checkins.all().delete()
     user.journals.all().delete()
     user.notifications.all().delete()
     user.coach_reports.all().delete()
+    DailyWellbeingIndex.objects.filter(user=user).delete()
+    user.push_subscriptions.all().delete()
     return counts
 
 

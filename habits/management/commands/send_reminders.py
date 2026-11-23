@@ -4,7 +4,7 @@ from django.core.management.base import BaseCommand
 
 from habits.scheduler import run_all_jobs
 from habits.services import send_due_reminders
-from insights.services import create_streak_risk_notifications
+from insights.services import create_streak_risk_notifications, create_wellbeing_trend_notifications
 
 
 class Command(BaseCommand):
@@ -17,7 +17,11 @@ class Command(BaseCommand):
         if not options["loop"]:
             reminders = send_due_reminders()
             risks = create_streak_risk_notifications()
-            self.stdout.write(self.style.SUCCESS(f"Đã tạo {reminders} nhắc nhở và {risks} cảnh báo sắp mất chuỗi."))
+            wellbeing = create_wellbeing_trend_notifications()
+            self.stdout.write(self.style.SUCCESS(
+                f"Đã tạo {reminders} nhắc nhở, {risks} cảnh báo sắp mất chuỗi và "
+                f"{wellbeing} lời nhắc wellbeing hỗ trợ."
+            ))
             return
         self.stdout.write("Đang chạy lặp mỗi 60 giây. Nhấn Ctrl+C để dừng.")
         try:

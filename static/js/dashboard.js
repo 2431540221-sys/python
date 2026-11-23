@@ -28,6 +28,18 @@
     var sleep = rows.map(function (r) { return byWeek ? r.avg_sleep_hours : r.sleep_hours; });
     var done = rows.map(function (r) { return r.habits_done; });
     var pct = rows.map(function (r) { return r.completion_percent; });
+    var index = rows.map(function (r) { return r.wellbeing_index != null ? r.wellbeing_index : r.avg_wellbeing_index; });
+    var coverage = rows.map(function (r) {
+      return byWeek ? r.avg_wellbeing_index_coverage : r.wellbeing_index_coverage;
+    });
+
+    var layoutIndex = baseLayout();
+    layoutIndex.yaxis = { title: "Chỉ số wellbeing", range: [0, 100], dtick: 20, gridcolor: C.line };
+    Plotly.newPlot("chart-index", [
+      { type: "scatter", mode: "lines+markers", x: x, y: index, name: "Chỉ số wellbeing",
+        customdata: coverage, connectgaps: false, line: { color: C.jade, width: 3 }, marker: { size: 7 },
+        hovertemplate: "%{y}/100<br>Độ phủ dữ liệu: %{customdata}%" },
+    ], layoutIndex, { displayModeBar: false, responsive: true });
 
     var layout1 = baseLayout();
     layout1.yaxis = { title: "Tâm trạng (1-5)", range: [0.5, 5.5], dtick: 1, gridcolor: C.line };

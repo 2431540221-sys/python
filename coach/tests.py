@@ -4,6 +4,7 @@ from unittest import mock
 
 from django.test import TestCase
 from django.urls import reverse
+from django.core import mail
 
 from accounts.demo import seed_user_data
 from accounts.models import User
@@ -28,6 +29,12 @@ class SafetyFilterTests(TestCase):
         res = safety.screen_text("Mình muốn chết quá")
         self.assertEqual(res["level"], "crisis")
         self.assertIn("115", res["reply"])
+
+    def test_indirect_distress_is_routed_to_support_response(self):
+        for text in ("Mọi người sẽ đỡ vất vả nếu không có mình", "Mình thấy mình là gánh nặng", "I feel like a burden"):
+            result = safety.screen_text(text)
+            self.assertEqual(result["level"], "support", text)
+            self.assertIn("115", result["reply"])
 
     def test_normal_text_passes(self):
         for text in ("Mình hay trì hoãn thói quen buổi tối", "Hôm nay mình mệt", "Bài tập này thuộc về nhóm mình"):
@@ -62,6 +69,8 @@ class CoachReportTests(TestCase):
 
     def test_weekly_summary_has_disclaimer(self):
         """Demo thầy yêu cầu: AI trả bản tóm tắt tuần có disclaimer."""
+        self.user.email = "coach@example.com"
+        self.user.save(update_fields=["email"])
         r = self.client.post("/api/coach/weekly/", **bearer(self.user))
         self.assertEqual(r.status_code, 201)
         data = r.json()
@@ -70,14 +79,18 @@ class CoachReportTests(TestCase):
         self.assertIn("không phải chẩn đoán", data["disclaimer"])
         self.assertEqual(data["source"], "rules")        # không có API key -> bộ luật dự phòng
         self.assertEqual(self.client.get("/api/coach/weekly/", **bearer(self.user)).status_code, 200)
+        self.assertEqual(len(mail.outbox), 1)
+        self.assertEqual(mail.outbox[0].to, ["coach@example.com"])
 
     def test_prompt_data_never_contains_journal_or_identity(self):
         JournalEntry.objects.create(user=self.user, title="Tiêu đề riêng", content="Nội dung rất riêng tư")
+        self.user.habits.update(name="TEN_THOI_QUEN_RIENG")
         blob = json.dumps(build_week_data(self.user), ensure_ascii=False)
         self.assertNotIn("Nội dung rất riêng tư", blob)
         self.assertNotIn("Tiêu đề riêng", blob)
         self.assertNotIn(self.user.username, blob)
         self.assertNotIn("example.com", blob)
+        self.assertNotIn("TEN_THOI_QUEN_RIENG", blob)
 
     def test_llm_output_is_sanitized(self):
         fake = {"summary": "Bạn bị trầm cảm.", "patterns": [], "goals": ["Ngủ sớm 15 phút"], "actions": ["Uống thuốc an thần"]}
@@ -100,6 +113,14 @@ class CoachReportTests(TestCase):
             r = self.client.get(reverse("coach"))
             llm.assert_not_called()
         self.assertContains(r, "không thể chẩn đoán")
+
+    def test_indirect_distress_never_reaches_llm(self):
+        self.client.post(reverse("login"), {"username": "coachuser", "password": "Matkhau!2026x"})
+        with mock.patch("coach.service.llm.call_llm_json") as llm:
+            self.client.post(reverse("coach_ask"), {"question": "Mọi người sẽ đỡ vất vả nếu không có mình"})
+            r = self.client.get(reverse("coach"))
+            llm.assert_not_called()
+        self.assertContains(r, "đang an toàn")
 
     def test_no_data_week_gives_gentle_message(self):
         newbie = User.objects.create_user("newbie", password="Matkhau!2026x", consent_ai=True)

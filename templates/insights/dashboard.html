@@ -42,6 +42,7 @@
 
 <section class="panel">
   <h2>Xu hướng của bạn</h2>
+  <p class="small muted">Chỉ số wellbeing (0–100) là xu hướng tự theo dõi, chưa được kiểm chứng như thước đo sức khỏe và không phải đánh giá y tế. Điểm gộp tâm trạng (35%), giấc ngủ (25%), vận động (10%) và thói quen (30%); thiếu check-in thì không tạo điểm, còn thành phần chưa có dữ liệu được loại khỏi phép tính và thể hiện qua độ phủ dữ liệu. Nếu điểm trung bình trên ngày có check-in giảm ít nhất 15 điểm so với 7 ngày trước, với ít nhất 3 check-in mỗi giai đoạn, Mầm có thể gửi một lời nhắc hỗ trợ mỗi tuần.</p>
   <div class="chart-controls">
     <div class="seg" role="group" aria-label="Khoảng thời gian">
       <button type="button" data-period="week" aria-pressed="false">7 ngày</button>
@@ -52,6 +53,7 @@
       <button type="button" data-group="week" aria-pressed="false">Theo tuần</button>
     </div>
   </div>
+  <div id="chart-index" class="chart" role="img" aria-label="Biểu đồ chỉ số wellbeing"></div>
   <div id="chart-mood" class="chart" role="img" aria-label="Biểu đồ tâm trạng và giấc ngủ"></div>
   <div id="chart-habits" class="chart" role="img" aria-label="Biểu đồ thói quen hoàn thành"></div>
   <p class="chart-note" id="chart-status">Đang tải số liệu…</p>

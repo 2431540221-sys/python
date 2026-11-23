@@ -1,7 +1,7 @@
 {% extends "base.html" %}
 {% block title %}AI coach{% endblock %}
 {% block content %}
-<div class="page-head"><div><h1>AI coach</h1><p>Tóm tắt tuần và gợi ý mục tiêu nhỏ từ số liệu bạn đã ghi. Mầm không chẩn đoán y tế.</p></div></div>
+<div class="page-head"><div><h1>AI coach</h1><p>Tóm tắt tuần và gợi ý mục tiêu nhỏ từ số liệu bạn đã ghi. Mầm không chẩn đoán y tế; bộ lọc cục bộ có thể không nhận ra mọi cách diễn đạt gián tiếp.</p></div></div>
 
 {% if not user.consent_ai %}
 <div class="alert"><h3>AI coach chưa được bật</h3><p>Hãy cho phép AI coach đọc số liệu tổng hợp (không gồm journal) trong mục Quyền riêng tư.</p><a class="btn small" href="{% url 'privacy' %}">Mở Quyền riêng tư</a></div>

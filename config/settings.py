@@ -148,10 +148,32 @@ MIN_USERS_FOR_ADMIN_STATS = int(os.environ.get("MIN_USERS_FOR_ADMIN_STATS", "3")
 # ---------------------------------------------------------------- Nhắc nhở / thông báo (Task 2, 4)
 ENABLE_SCHEDULER = env_bool("ENABLE_SCHEDULER", True)
 STREAK_RISK_FROM_HOUR = int(os.environ.get("STREAK_RISK_FROM_HOUR", "18"))  # từ 18h mới báo "sắp mất streak"
+WELLBEING_NUDGE_FROM_HOUR = int(os.environ.get("WELLBEING_NUDGE_FROM_HOUR", "20"))
+WELLBEING_NUDGE_DROP_POINTS = int(os.environ.get("WELLBEING_NUDGE_DROP_POINTS", "15"))
+
+# ---------------------------------------------------------------- Email (nhắc nhở, streak, AI coach)
+EMAIL_BACKEND = os.environ.get(
+    "EMAIL_BACKEND",
+    "django.core.mail.backends.console.EmailBackend" if DEBUG
+    else "django.core.mail.backends.smtp.EmailBackend",
+)
+EMAIL_HOST = os.environ.get("EMAIL_HOST", "")
+EMAIL_PORT = int(os.environ.get("EMAIL_PORT", "587"))
+EMAIL_HOST_USER = os.environ.get("EMAIL_HOST_USER", "")
+EMAIL_HOST_PASSWORD = os.environ.get("EMAIL_HOST_PASSWORD", "")
+EMAIL_TIMEOUT = int(os.environ.get("EMAIL_TIMEOUT", "10"))
+EMAIL_USE_TLS = env_bool("EMAIL_USE_TLS", True)
+EMAIL_USE_SSL = env_bool("EMAIL_USE_SSL", False)
+DEFAULT_FROM_EMAIL = os.environ.get("DEFAULT_FROM_EMAIL", "Mầm Wellbeing <no-reply@mam-wellbeing.local>")
+
+# ---------------------------------------------------------------- Web Push
+VAPID_PUBLIC_KEY = os.environ.get("VAPID_PUBLIC_KEY", "")
+VAPID_PRIVATE_KEY = os.environ.get("VAPID_PRIVATE_KEY", "")
+VAPID_CLAIMS_EMAIL = os.environ.get("VAPID_CLAIMS_EMAIL", "mailto:admin@example.com")
 
 # ---------------------------------------------------------------- AI coach (Task 5)
 GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY", "")
-GEMINI_MODEL = os.environ.get("GEMINI_MODEL", "gemini-2.0-flash")
+GEMINI_MODEL = os.environ.get("GEMINI_MODEL", "gemini-3.8-flash")
 
 # ---------------------------------------------------------------- Bảo mật khi deploy
 if not DEBUG:

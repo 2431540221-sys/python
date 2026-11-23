@@ -9,7 +9,7 @@
     <li>Mật khẩu được băm bằng PBKDF2, không ai đọc lại được.</li>
     <li>Nội dung journal được <strong>mã hóa</strong> trong cơ sở dữ liệu và chỉ bạn xem được.</li>
     <li>Người dùng khác, kể cả quản trị viên, không đọc được dữ liệu của bạn. Quản trị viên chỉ thấy thống kê tổng hợp ẩn danh.</li>
-    <li>AI coach chỉ đọc số liệu tổng hợp (tâm trạng, giờ ngủ, thói quen), không bao giờ đọc journal.</li>
+    <li>Nếu bạn đồng ý, AI coach nhận số liệu check-in, trạng thái thói quen và câu hỏi bạn chủ động gửi. Tên thói quen, username/email từ tài khoản và nội dung journal không được tự động gửi; tránh đưa thông tin nhận dạng vào câu hỏi.</li>
   </ul>
 </section>
 
@@ -17,14 +17,14 @@
   <h2>AI coach</h2>
   <form method="post">{% csrf_token %}
     <label class="check"><input type="checkbox" name="consent_ai" {% if user.consent_ai %}checked{% endif %}>
-      <span>Cho phép AI coach đọc số liệu tổng hợp của tôi để tóm tắt tuần và gợi ý mục tiêu nhỏ.</span></label>
+      <span>Cho phép AI coach dùng số liệu tổng hợp và câu hỏi tôi chủ động gửi để tóm tắt tuần, trả lời và gợi ý mục tiêu nhỏ.</span></label>
     <p class="btn-row" style="margin-top:14px"><button class="btn" type="submit">Lưu lựa chọn</button></p>
   </form>
 </section>
 
 <section class="panel">
   <h2>Xuất dữ liệu</h2>
-  <p>Tải về toàn bộ thói quen, check-in, journal, thông báo và báo cáo của bạn dưới dạng file JSON.</p>
+  <p>Tải về dữ liệu cá nhân, gồm thói quen, check-in, journal, thông báo, báo cáo AI, chỉ số wellbeing và đăng ký push, dưới dạng file JSON.</p>
   <a class="btn ghost" href="{% url 'export_data' %}">Tải dữ liệu của tôi (JSON)</a>
 </section>
 
@@ -37,7 +37,7 @@
 <section class="panel">
   <h2>Xóa dữ liệu</h2>
   <form method="post" action="{% url 'delete_data' %}" data-confirm="Xóa toàn bộ dữ liệu cá nhân? Việc này không hoàn tác được.">{% csrf_token %}
-    <p>Xóa thói quen, check-in, journal, thông báo và báo cáo AI. Tài khoản vẫn được giữ.</p>
+    <p>Xóa thói quen, check-in, journal, thông báo, báo cáo AI, chỉ số wellbeing và đăng ký push. Tài khoản vẫn được giữ.</p>
     <label class="check"><input type="checkbox" name="confirm" value="yes"><span>Tôi hiểu dữ liệu sẽ bị xóa vĩnh viễn.</span></label>
     <p style="margin-top:14px"><button class="btn danger" type="submit">Xóa dữ liệu của tôi</button></p>
   </form>

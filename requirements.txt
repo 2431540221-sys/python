@@ -4,3 +4,4 @@ cryptography>=42
 whitenoise>=6.6
 APScheduler>=3.10,<4
 dj-database-url>=2.1
+pywebpush>=2.0,<3

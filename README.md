@@ -22,6 +22,8 @@
 | **4** Dashboard xu hướng, notification | API tổng hợp theo tuần/tháng | `GET /api/stats/?period=week` hoặc `month` | `insights/services.py`, `api.py` |
 | | Biểu đồ đường/cột mood–giấc ngủ–habit (Plotly) | Dashboard `/dashboard/`, chuyển 7/30 ngày và theo ngày/theo tuần | `static/js/dashboard.js` |
 | | Thông báo khi sắp mất streak | Từ 18h, thói quen có chuỗi mà chưa làm sẽ có thông báo (1 lần/ngày) + chuông trên menu | `insights/services.py` |
+| | Gửi thông báo qua email và push | Nhắc nhở, cảnh báo và báo cáo được lưu trong app, gửi email nếu có SMTP, và gửi Web Push tới trình duyệt đã đăng ký | `habits/services.py`, `insights/views.py`, `static/js/service-worker.js` |
+| | Chỉ số wellbeing tham khảo | Dashboard lưu index 0-100 theo ngày; đây là xu hướng tự theo dõi, chưa được kiểm chứng y tế. Giảm ít nhất 15 điểm so với 7 ngày trước, với tối thiểu 3 check-in mỗi giai đoạn, có thể kích hoạt lời nhắc hỗ trợ hàng tuần | `insights/models.py`, `insights/services.py` |
 | | Demo: dashboard cá nhân với dữ liệu 30 ngày | Nạp dữ liệu mẫu 30 ngày rồi mở `/dashboard/` | |
 | **5** AI coach nhẹ, deploy | Prompt tóm tắt tuần từ log, gợi ý mục tiêu nhỏ | `/coach/` và `POST /api/coach/weekly/` | `coach/prompts.py`, `service.py` |
 | | Bộ lọc từ khóa nhạy cảm kèm câu từ chối chẩn đoán y tế | Chặn **trước** khi gửi cho AI và lọc **đầu ra** của AI | `coach/safety.py` |
@@ -35,10 +37,11 @@
    ```
    pip install -r requirements.txt
    python manage.py migrate
-   python manage.py load_demo_data
    python manage.py runserver
    ```
 3. Mở http://127.0.0.1:8000/
+
+Nếu chỉ muốn dữ liệu minh họa, chạy riêng `python manage.py load_demo_data` trên môi trường demo. Không nạp dữ liệu giả vào tài khoản người dùng thật.
 
 Tài khoản demo (do `load_demo_data` tạo):
 
@@ -47,7 +50,7 @@ Tài khoản demo (do `load_demo_data` tạo):
 | `usera`, `userb`, `userc` | `Demo@12345` | người dùng (đều có sẵn 30 ngày dữ liệu) |
 | `admin` | `Admin@12345` | quản trị viên |
 
-Chạy bộ kiểm thử (74 test): `python manage.py test`
+Chạy bộ kiểm thử: `python manage.py test`. Dữ liệu mô phỏng được tạo trong test database tạm và không ghi vào database người dùng.
 
 ## Kịch bản demo cho thầy
 
@@ -90,10 +93,13 @@ Mã hóa: mở `db.sqlite3`, bảng `tracking_journalentry`, cột `content` là
 
 1. Đẩy project lên GitHub (`.gitignore` đã loại `db.sqlite3`).
 2. Render → **New → Blueprint** → chọn repo. Render đọc `render.yaml`, tạo web service và database Postgres.
-3. Biến môi trường (đã khai báo trong `render.yaml`): `SECRET_KEY` và `JOURNAL_ENCRYPTION_KEY` tự sinh; `DEBUG=0`; `DATABASE_URL` tự nối với database.
+3. Biến môi trường (đã khai báo trong `render.yaml`): `SECRET_KEY` và `JOURNAL_ENCRYPTION_KEY` tự sinh; `DEBUG=0`; `DATABASE_URL` tự nối với database. Trong Render → service → **Environment**, điền các biến `sync: false`:
    - `LOAD_DEMO=1` nếu muốn có sẵn tài khoản demo. **Nhớ tắt hoặc xóa các tài khoản này sau khi demo**, vì mật khẩu được ghi công khai ở trên.
-   - `GEMINI_API_KEY` (tùy chọn) để AI coach dùng mô hình Gemini; không đặt thì dùng bộ luật dự phòng, vẫn có đủ disclaimer.
-4. Build xong, link dạng `https://mam-wellbeing.onrender.com` là link nộp cho thầy.
+   - Email SMTP (ví dụ Gmail): `EMAIL_HOST=smtp.gmail.com`, `EMAIL_PORT=587`, `EMAIL_USE_TLS=1`, `EMAIL_USE_SSL=0`, `EMAIL_HOST_USER` là địa chỉ Gmail, `EMAIL_HOST_PASSWORD` là **Google App Password** (không phải mật khẩu đăng nhập), và `DEFAULT_FROM_EMAIL` là địa chỉ gửi. Bật xác minh 2 bước rồi tạo App Password trong tài khoản Google. Nhà cung cấp khác cần dùng host/port/TLS tương ứng.
+   - AI coach: đặt `GEMINI_API_KEY` bằng API key từ Google AI Studio; `GEMINI_MODEL` mặc định `gemini-3.8-flash`. Key được đọc bởi `coach/llm.py`, không ghi key vào repository. Không cấu hình key thì dùng bộ luật dự phòng.
+   - Web Push: chạy `python manage.py generate_vapid_keys` trong môi trường local, nhập hai giá trị tương ứng vào `VAPID_PUBLIC_KEY` và `VAPID_PRIVATE_KEY` trên Render, rồi đặt `VAPID_CLAIMS_EMAIL=mailto:email-của-bạn`. Giữ private key kín và ổn định. Web Push cần HTTPS và mỗi người dùng phải cấp quyền trên trình duyệt của họ.
+   - `WELLBEING_NUDGE_FROM_HOUR` mặc định `20` theo múi giờ ứng dụng; `WELLBEING_NUDGE_DROP_POINTS` mặc định `15`. Đây là ngưỡng nhắc nhở hỗ trợ, không phải ngưỡng sức khỏe.
+4. Build xong, Render cung cấp URL service dạng `https://<service-name>.onrender.com`; dùng URL thực tế của service để kiểm tra và chia sẻ.
 
 Lưu ý: kiểm tra lại tên gói (plan) free của web service và database trong tài liệu Render trước khi deploy, vì gói free có thể thay đổi. Web service gói free sẽ "ngủ" khi không có truy cập nên lần mở đầu chậm, và scheduler nhắc nhở chỉ chạy khi service đang thức.
 
@@ -104,5 +110,5 @@ Lưu ý: kiểm tra lại tên gói (plan) free của web service và database t
 - Đăng nhập sai 5 lần sẽ bị khóa 15 phút.
 - Thống kê ẩn danh chỉ hiển thị khi có từ 3 người dùng trở lên (`MIN_USERS_FOR_ADMIN_STATS`).
 - **Giữ cố định `JOURNAL_ENCRYPTION_KEY`** (hoặc `SECRET_KEY` nếu không đặt riêng). Đổi khóa thì journal cũ không giải mã được.
-- AI coach chỉ nhận số liệu tổng hợp (không có journal, tên, email) và cần người dùng bật quyền trong mục Quyền riêng tư.
-- Phần gọi Gemini (`coach/llm.py`) chưa được kiểm thử với API key thật; mọi lỗi sẽ tự quay về bộ luật dự phòng. Tên mô hình đặt qua `GEMINI_MODEL`.
+- Khi có Gemini và người dùng đồng ý, AI coach nhận số liệu check-in, trạng thái thói quen và câu hỏi người dùng chủ động gửi; không tự động gửi journal, tên thói quen, username hay email. Câu hỏi được gửi nguyên văn nên tránh nhập thông tin nhận dạng. Bộ lọc cục bộ có thêm mẫu diễn đạt gián tiếp và phản hồi thận trọng, nhưng không thể bảo đảm nhận diện mọi cách diễn đạt hoặc thay thế hỗ trợ chuyên môn.
+- Phần gọi Gemini (`coach/llm.py`) chưa được kiểm thử với API key thật; mọi lỗi sẽ tự quay về bộ luật dự phòng. Tên mô hình đặt qua `GEMINI_MODEL`; kiểm tra model đang được hỗ trợ trước khi đổi cấu hình.

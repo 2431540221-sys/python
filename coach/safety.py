@@ -25,12 +25,29 @@ CRISIS_RESPONSE = (
     "cơ sở y tế gần nhất ngay, và nhắn cho một người thân hoặc bạn bè tin cậy để họ ở bên bạn."
 )
 
+SUPPORT_CHECK_RESPONSE = (
+    "Nghe như bạn đang phải chịu nhiều áp lực. Mầm không thể đánh giá mức độ an toàn qua tin nhắn. "
+    "Bạn có đang an toàn ngay lúc này không? Nếu bạn có nguy cơ trước mắt, hãy gọi 115 hoặc đến cơ sở y tế "
+    "gần nhất, đồng thời nhờ một người bạn tin cậy ở bên."
+)
+
 SAFE_FALLBACK = "Hãy chọn một việc nhỏ, dễ làm và nghỉ ngơi đủ; nếu cần, hãy chia sẻ với người bạn tin tưởng."
 
 # Từ khóa đã bỏ dấu, viết thường. Cụm từ được so khớp theo ranh giới từ.
 CRISIS_TERMS = [
     "tu tu", "tu sat", "muon chet", "khong muon song", "ket thuc cuoc song", "ket lieu doi minh",
     "tu lam dau", "tu hai", "tu gay ton thuong", "cat tay", "nhay lau", "treo co", "het muon song",
+    "khong con ly do de song", "khong muon tinh day nua", "muon ngu mai mai", "gui loi tam biet",
+    "sap bien mat", "gia nhu minh chua tung ton tai", "ket thuc tat ca", "muon tu ket lieu",
+    "kill myself", "end my life", "want to die", "self harm",
+]
+SUPPORT_TERMS = [
+    "vo vong", "be tac", "ganh nang", "khong thay loi thoat", "khong con y nghia",
+    "khong ai can minh", "khong con muon co gang", "khong muon tiep tuc nua",
+    "khong the tiep tuc nua", "khong muon lam phien ai", "gia nhu minh khong ton tai",
+    "do vat va neu khong co minh", "se tot hon neu khong co minh",
+    "better off without me", "no reason to live", "burden to everyone", "feel like a burden", "cant go on",
+    "can't go on", "cant keep going", "can't keep going", "want to disappear",
 ]
 MEDICAL_TERMS = [
     "chan doan", "tram cam", "lo au", "roi loan", "benh tam than", "tam than phan liet", "luong cuc",
@@ -61,9 +78,11 @@ def is_medical(text):
 
 
 def screen_text(text):
-    """Phân loại câu người dùng nhập: crisis / medical / ok. Kèm câu trả lời cố định nếu nhạy cảm."""
+    """Phân loại câu người dùng nhập; nội dung cần hỗ trợ được trả lời cục bộ, không gửi tới AI."""
     if is_crisis(text):
         return {"level": "crisis", "reply": CRISIS_RESPONSE}
+    if _contains(text, SUPPORT_TERMS):
+        return {"level": "support", "reply": SUPPORT_CHECK_RESPONSE}
     if is_medical(text):
         return {"level": "medical", "reply": MEDICAL_REFUSAL}
     return {"level": "ok", "reply": None}

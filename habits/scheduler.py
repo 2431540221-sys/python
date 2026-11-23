@@ -31,6 +31,17 @@ def run_all_jobs():
         logger.exception("Scheduler job lỗi")
 
 
+def run_wellbeing_nudge_job():
+    from insights.services import create_wellbeing_trend_notifications
+
+    try:
+        created = create_wellbeing_trend_notifications()
+        if created:
+            logger.info("Scheduler: đã gửi %s lời nhắc wellbeing hỗ trợ", created)
+    except Exception:
+        logger.exception("Scheduler job nhắc wellbeing lỗi")
+
+
 def _is_server_process():
     argv = " ".join(sys.argv)
     if "runserver" in argv:
@@ -48,6 +59,10 @@ def start_scheduler_if_needed():
     scheduler = BackgroundScheduler(timezone=settings.TIME_ZONE)
     scheduler.add_job(run_all_jobs, "interval", seconds=60, id="wellbeing_jobs",
                       max_instances=1, coalesce=True, replace_existing=True)
+    scheduler.add_job(
+        run_wellbeing_nudge_job, "cron", hour=settings.WELLBEING_NUDGE_FROM_HOUR, minute=0,
+        id="wellbeing_trend_nudge", max_instances=1, coalesce=True, replace_existing=True,
+    )
     scheduler.start()
     _started = True
     logger.info("Đã bật scheduler nhắc nhở (mỗi 60 giây).")

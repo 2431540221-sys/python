@@ -5,3 +5,19 @@ document.addEventListener("submit", function (event) {
     event.preventDefault();
   }
 });
+
+if ("serviceWorker" in navigator) {
+  navigator.serviceWorker.addEventListener("message", function (event) {
+    if (!event.data || event.data.type !== "wellbeing-push") return;
+    var link = document.querySelector('.navlink[href$="/notifications/"]');
+    if (!link) return;
+    var badge = link.querySelector(".navbadge");
+    if (!badge) {
+      badge = document.createElement("span");
+      badge.className = "navbadge";
+      link.appendChild(badge);
+    }
+    badge.textContent = String((parseInt(badge.textContent, 10) || 0) + 1);
+    badge.setAttribute("aria-label", "thông báo chưa đọc");
+  });
+}

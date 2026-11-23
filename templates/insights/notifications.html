@@ -1,10 +1,26 @@
 {% extends "base.html" %}
+{% load static %}
 {% block title %}Thông báo{% endblock %}
 {% block content %}
 <div class="page-head">
-  <div><h1>Thông báo</h1><p>Nhắc nhở theo giờ, cảnh báo sắp mất chuỗi và tin từ AI coach.</p></div>
+  <div><h1>Thông báo</h1><p>Nhắc nhở theo giờ, xu hướng wellbeing, cảnh báo sắp mất chuỗi và tin từ AI coach.</p></div>
   {% if unread_count %}<form method="post" action="{% url 'notifications_read' %}">{% csrf_token %}<button class="btn ghost" type="submit">Đánh dấu đã đọc tất cả</button></form>{% endif %}
 </div>
+<section class="panel">
+  <h2>Thông báo đẩy</h2>
+  {% if vapid_public_key %}
+  <form id="push-controls">
+    {% csrf_token %}
+    <button class="btn" type="button" id="push-enable" data-vapid-key="{{ vapid_public_key }}">Bật thông báo trên trình duyệt</button>
+    <button class="btn ghost" type="button" id="push-disable">Tắt trên trình duyệt này</button>
+    <p class="small muted" id="push-status" aria-live="polite">
+      {% if has_push_subscription %}Thiết bị này đã đăng ký push. Trình duyệt cũng cần được cấp quyền thông báo.{% else %}Cho phép trình duyệt hiển thị thông báo kể cả khi ứng dụng không mở.{% endif %}
+    </p>
+  </form>
+  {% else %}
+  <p class="small muted">Web Push chưa được cấu hình trên máy chủ. Cần thiết lập cặp khóa VAPID.</p>
+  {% endif %}
+</section>
 <section class="panel">
 {% for n in items %}
   <div class="notice {% if not n.is_read %}unread{% endif %}">
@@ -20,4 +36,7 @@
   <div class="empty"><p>Chưa có thông báo nào. Bật nhắc nhở cho một thói quen để nhận thông báo đúng giờ.</p><a class="btn" href="{% url 'habit_list' %}">Đi tới thói quen</a></div>
 {% endfor %}
 </section>
+{% endblock %}
+{% block scripts %}
+{% if vapid_public_key %}<script src="{% static 'js/push-notifications.js' %}" defer></script>{% endif %}
 {% endblock %}

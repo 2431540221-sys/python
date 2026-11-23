@@ -4,7 +4,7 @@ from datetime import timedelta
 from django.utils import timezone
 
 from habits.models import Notification
-from habits.services import get_habit_stats
+from habits.services import deliver_notification, get_habit_stats
 from insights.services import period_stats
 
 from . import llm, prompts, safety
@@ -24,7 +24,6 @@ def build_week_data(user, today=None):
     for habit in user.habits.filter(is_active=True):
         stats = get_habit_stats(habit, today)
         habits.append({
-            "name": habit.name,
             "done_last_7_days": habit.logs.filter(date__gte=today - timedelta(days=6), date__lte=today).count(),
             "current_streak": stats["current_streak"],
             "done_today": stats["done_today"],
@@ -76,14 +75,14 @@ def rule_based_report(data):
         weakest = min(data["habits"], key=lambda h: h["done_last_7_days"], default=None)
         patterns.append(f"Bạn hoàn thành khoảng {completion}% lượt thói quen đã đặt trong tuần.")
         goals.append(
-            f"Chỉ giữ “{weakest['name']}” ở mức 2 phút mỗi ngày trong 3 ngày tới." if weakest
-            else "Chọn 1 thói quen nhỏ và làm trong 2 phút mỗi ngày."
+            "Chọn một thói quen đang khó giữ, giảm xuống mức 2 phút mỗi ngày trong 3 ngày tới."
+            if weakest else "Chọn 1 thói quen nhỏ và làm trong 2 phút mỗi ngày."
         )
     at_risk = [h for h in data["habits"] if h["current_streak"] > 0 and not h["done_today"]]
     if at_risk:
         top = max(at_risk, key=lambda h: h["current_streak"])
-        patterns.append(f"“{top['name']}” đang có chuỗi {top['current_streak']} ngày nhưng hôm nay chưa được đánh dấu.")
-        actions.append(f"Làm “{top['name']}” hôm nay để giữ chuỗi.")
+        patterns.append(f"Một thói quen đang có chuỗi {top['current_streak']} ngày nhưng hôm nay chưa được đánh dấu.")
+        actions.append("Hoàn thành thói quen đó hôm nay nếu bạn vẫn muốn tiếp tục chuỗi.")
     if data["activity_minutes"] < 60:
         goals.append("Đi bộ 10 phút mỗi ngày, có thể vừa đi vừa nghe nhạc.")
 
@@ -121,10 +120,12 @@ def generate_report(user, today=None):
             "source": source,
         },
     )
-    Notification.objects.get_or_create(
+    notification, created = Notification.objects.get_or_create(
         user=user, kind=Notification.KIND_COACH, habit=None, day=today,
         defaults={"title": "Có bản tóm tắt tuần mới", "body": "AI coach vừa tóm tắt tuần của bạn."},
     )
+    if created:
+        deliver_notification(notification)
     return report
 
 
