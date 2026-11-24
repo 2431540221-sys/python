@@ -3,10 +3,12 @@ from datetime import timedelta
 from django import forms
 from django.utils import timezone
 
+from config.forms import BootstrapFormMixin
+
 from .models import ACTIVITY_CHOICES, MOOD_CHOICES, DailyCheckin, JournalEntry
 
 
-class CheckinForm(forms.ModelForm):
+class CheckinForm(BootstrapFormMixin, forms.ModelForm):
     mood = forms.TypedChoiceField(
         label="Hôm nay bạn thấy thế nào?", choices=MOOD_CHOICES, coerce=int, widget=forms.RadioSelect
     )
@@ -39,7 +41,7 @@ class CheckinForm(forms.ModelForm):
         return data
 
 
-class JournalForm(forms.ModelForm):
+class JournalForm(BootstrapFormMixin, forms.ModelForm):
     class Meta:
         model = JournalEntry
         fields = ["title", "content", "tags"]

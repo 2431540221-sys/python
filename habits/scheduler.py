@@ -47,7 +47,7 @@ def _is_server_process():
     if "runserver" in argv:
         # runserver có autoreloader: chỉ bật ở tiến trình con thực sự phục vụ request
         return os.environ.get("RUN_MAIN") == "true" or "--noreload" in argv
-    return "gunicorn" in argv or os.environ.get("FORCE_SCHEDULER") == "1"
+    return "gunicorn" in argv or "uvicorn" in argv or os.environ.get("FORCE_SCHEDULER") == "1"
 
 
 def start_scheduler_if_needed():

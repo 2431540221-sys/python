@@ -137,6 +137,18 @@ class WebAuthTests(TestCase):
         self.assertTrue(cookie["httponly"])
         self.assertEqual(self.client.get(reverse("dashboard")).status_code, 200)
 
+    def test_registration_redirects_to_habit_list_and_authenticates_user(self):
+        response = self.client.post(reverse("register"), {
+            "username": "new-user",
+            "email": "",
+            "password1": "StrongPass!246",
+            "password2": "StrongPass!246",
+        })
+
+        self.assertRedirects(response, reverse("habit_list"), fetch_redirect_response=False)
+        self.assertTrue(response.cookies["mam_access"]["httponly"])
+        self.assertTrue(User.objects.filter(username="new-user").exists())
+
     def test_pages_require_login(self):
         for name in ("dashboard", "habit_list", "checkin", "journal_list", "coach", "privacy", "notifications"):
             r = self.client.get(reverse(name))

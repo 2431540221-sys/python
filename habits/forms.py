@@ -1,9 +1,11 @@
 from django import forms
 
+from config.forms import BootstrapFormMixin
+
 from .models import Habit
 
 
-class HabitForm(forms.ModelForm):
+class HabitForm(BootstrapFormMixin, forms.ModelForm):
     class Meta:
         model = Habit
         fields = ["name", "description", "weekly_target", "streak_goal", "reminder_enabled", "reminder_time"]
