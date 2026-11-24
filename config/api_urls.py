@@ -13,7 +13,6 @@ urlpatterns = [
     path("auth/login/", accounts_api.login, name="api_login"),
     path("auth/refresh/", accounts_api.refresh, name="api_refresh"),
     path("me/", accounts_api.me, name="api_me"),
-    path("me/export/", accounts_api.export_my_data, name="api_export"),
     path("me/data/", accounts_api.delete_my_data, name="api_delete_data"),
     path("admin/stats/", accounts_api.admin_stats, name="api_admin_stats"),
     # Task 2: thói quen & streak

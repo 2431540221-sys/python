@@ -1,4 +1,5 @@
 """Task 5 - AI coach nhẹ: gom số liệu tuần -> prompt -> (LLM hoặc bộ luật) -> lọc an toàn -> lưu."""
+import logging
 from datetime import timedelta
 
 from django.utils import timezone
@@ -9,6 +10,8 @@ from insights.services import period_stats
 
 from . import llm, prompts, safety
 from .models import CoachReport
+
+logger = logging.getLogger(__name__)
 
 
 class ConsentRequired(Exception):
@@ -129,20 +132,33 @@ def generate_report(user, today=None):
     return report
 
 
-def answer_question(user, question):
+def answer_question(user, question, conversation=None):
     """Trả lời một câu hỏi ngắn. Câu nhạy cảm bị chặn TRƯỚC khi tới AI."""
     screened = safety.screen_text(question)
     if screened["level"] != "ok":
-        return {"level": screened["level"], "summary": screened["reply"], "actions": []}
+        return {
+            "level": screened["level"],
+            "summary": screened["reply"],
+            "actions": [],
+            "source": "safety",
+        }
     if not user.consent_ai:
         raise ConsentRequired
 
     data = build_week_data(user)
-    raw = llm.call_llm_json(prompts.build_question_prompt(question, data))
+    raw = llm.call_llm_json(prompts.build_question_prompt(question, data, conversation))
+    source = CoachReport.SOURCE_LLM
     if not raw or not raw.get("summary"):
+        logger.warning("AI coach returned no summary; using the rule-based answer.")
         raw = _rule_based_answer(question)
+        source = CoachReport.SOURCE_RULES
     clean = safety.sanitize_report(raw)
-    return {"level": "ok", "summary": clean["summary"], "actions": clean["actions"] + clean["goals"][:1]}
+    return {
+        "level": "ok",
+        "summary": clean["summary"],
+        "actions": clean["actions"] + clean["goals"][:1],
+        "source": source,
+    }
 
 
 def _rule_based_answer(question):

@@ -8,7 +8,7 @@ from django.views.decorators.http import require_POST
 
 from .forms import HabitForm
 from .models import Habit
-from .services import habits_with_stats, get_habit_stats, recent_days, toggle_day
+from .services import habits_with_stats, get_habit_stats, mark_day_done, month_calendar
 
 
 def _own_habit(request, pk):
@@ -36,11 +36,27 @@ def habit_create(request):
 @login_required
 def habit_detail(request, pk):
     habit = _own_habit(request, pk)
+    today = timezone.localdate()
     stats = get_habit_stats(habit)
+    try:
+        selected_month = int(request.GET.get("month", today.month))
+        selected_year = int(request.GET.get("year", today.year))
+        if not 1 <= selected_month <= 12 or not 1 <= selected_year <= 9999:
+            raise ValueError
+    except (TypeError, ValueError):
+        messages.error(request, "Tháng hoặc năm không hợp lệ; đang hiển thị tháng hiện tại.")
+        selected_month, selected_year = today.month, today.year
     return render(request, "habits/detail.html", {
         "habit": habit,
         "stats": stats,
-        "calendar": recent_days(habit, 35),
+        "calendar": month_calendar(habit, selected_year, selected_month, today),
+        "today": today,
+        "selected_month": selected_month,
+        "selected_year": selected_year,
+        "calendar_months": [
+            {"number": month, "name": f"Tháng {month}"}
+            for month in range(1, 13)
+        ],
     })
 
 
@@ -72,14 +88,14 @@ def habit_toggle(request, pk):
     raw = request.POST.get("date")
     try:
         day = date.fromisoformat(raw) if raw else timezone.localdate()
-        done = toggle_day(habit, day)
+        created = mark_day_done(habit, day)
     except ValueError as exc:
         messages.error(request, str(exc))
     else:
-        if done:
+        if created:
             stats = get_habit_stats(habit)
             messages.success(request, f"Đã hoàn thành “{habit.name}”. Chuỗi hiện tại: {stats['current_streak']} ngày.")
         else:
-            messages.info(request, f"Đã bỏ đánh dấu “{habit.name}”.")
+            messages.info(request, f"Bạn đã hoàn thành “{habit.name}” hôm nay rồi.")
     nxt = request.POST.get("next")
     return redirect("habit_detail", pk=pk) if nxt == "detail" else redirect("habit_list")

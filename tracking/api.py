@@ -1,6 +1,10 @@
-from django.core.exceptions import ValidationError
+from datetime import date
+
+from django.db import IntegrityError
+from django.db import transaction
 from django.http import JsonResponse
 from django.shortcuts import get_object_or_404
+from django.utils import timezone
 
 from accounts.apiutils import api, form_errors, read_json
 
@@ -25,20 +29,38 @@ def journal_json(j):
 @api(methods=("GET", "POST"))
 def checkin_list(request):
     if request.method == "GET":
-        qs = DailyCheckin.objects.filter(user=request.user)[:90]
+        qs = DailyCheckin.objects.filter(user=request.user, date__lte=timezone.localdate())[:90]
         return JsonResponse({"checkins": [checkin_json(c) for c in qs]})
     data = read_json(request)
     try:
-        existing = DailyCheckin.objects.filter(user=request.user, date=data["date"]).first() if data.get("date") else None
-    except (ValidationError, ValueError):
-        existing = None      # ngày sai định dạng: để form báo lỗi
-    form = CheckinForm(data, instance=existing)
+        day = date.fromisoformat(data["date"]) if data.get("date") else timezone.localdate()
+    except (TypeError, ValueError):
+        return JsonResponse({"error": "invalid_date", "detail": "Ngày check-in không hợp lệ."}, status=400)
+    if day != timezone.localdate():
+        return JsonResponse(
+            {"error": "invalid_date", "detail": "Chỉ được check-in cho ngày hôm nay."},
+            status=400,
+        )
+    if DailyCheckin.objects.filter(user=request.user, date=day).exists():
+        return JsonResponse(
+            {"error": "already_checked_in", "detail": "Bạn đã check-in hôm nay rồi."},
+            status=409,
+        )
+    form = CheckinForm(data)
     if not form.is_valid():
         return JsonResponse({"error": "validation_error", "fields": form_errors(form)}, status=400)
     entry = form.save(commit=False)
     entry.user = request.user
-    entry.save()
-    return JsonResponse(checkin_json(entry), status=200 if existing else 201)
+    entry.date = day
+    try:
+        with transaction.atomic():
+            entry.save()
+    except IntegrityError:
+        return JsonResponse(
+            {"error": "already_checked_in", "detail": "Bạn đã check-in hôm nay rồi."},
+            status=409,
+        )
+    return JsonResponse(checkin_json(entry), status=201)
 
 
 @api(methods=("GET", "POST"))

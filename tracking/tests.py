@@ -48,11 +48,26 @@ class CheckinTests(TestCase):
         self.client.post(reverse("checkin"), self.payload(activity_minutes=0))
         self.assertFalse(DailyCheckin.objects.exists())
 
-    def test_same_day_updates_instead_of_duplicating(self):
+    def test_second_checkin_same_day_is_rejected(self):
         self.client.post(reverse("checkin"), self.payload(mood=2))
-        self.client.post(reverse("checkin"), self.payload(mood=5))
+        response = self.client.post(reverse("checkin"), self.payload(mood=5))
         self.assertEqual(DailyCheckin.objects.filter(user=self.user).count(), 1)
-        self.assertEqual(DailyCheckin.objects.get(user=self.user).mood, 5)
+        self.assertRedirects(response, reverse("history"))
+        self.assertEqual(DailyCheckin.objects.get(user=self.user).mood, 2)
+
+    def test_past_date_checkin_is_rejected(self):
+        response = self.client.post(
+            reverse("checkin"),
+            self.payload(date=(self.today - timedelta(days=1)).isoformat()),
+        )
+        self.assertRedirects(response, reverse("checkin"))
+        self.assertFalse(DailyCheckin.objects.exists())
+
+    def test_today_checkin_page_disables_repeat_submission(self):
+        self.client.post(reverse("checkin"), self.payload())
+        response = self.client.get(reverse("checkin"))
+        self.assertContains(response, "Hôm nay bạn đã check-in")
+        self.assertNotContains(response, 'name="mood"')
 
     def test_fourteen_days_of_sample_data_and_history(self):
         """Demo thầy yêu cầu: nhập 14 ngày dữ liệu mẫu và xem lại lịch sử."""
@@ -73,6 +88,20 @@ class CheckinTests(TestCase):
         h = {"HTTP_AUTHORIZATION": f"Bearer {create_access_token(self.user)}"}
         r = self.client.post("/api/checkins/", json.dumps(self.payload()), content_type="application/json", **h)
         self.assertEqual(r.status_code, 201)
+        duplicate = self.client.post(
+            "/api/checkins/",
+            json.dumps(self.payload(mood=2)),
+            content_type="application/json",
+            **h,
+        )
+        self.assertEqual(duplicate.status_code, 409)
+        past = self.client.post(
+            "/api/checkins/",
+            json.dumps(self.payload(date=(self.today - timedelta(days=1)).isoformat())),
+            content_type="application/json",
+            **h,
+        )
+        self.assertEqual(past.status_code, 400)
         bad = self.client.post("/api/checkins/", json.dumps(self.payload(mood=9, date="khong-phai-ngay")), content_type="application/json", **h)
         self.assertEqual(bad.status_code, 400)
         self.assertEqual(len(self.client.get("/api/checkins/", **h).json()["checkins"]), 1)

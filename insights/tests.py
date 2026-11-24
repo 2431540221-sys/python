@@ -139,7 +139,8 @@ class StreakRiskTests(TestCase):
 
     def test_notifies_when_streak_about_to_break(self):
         self.user.email = "a@example.com"
-        self.user.save(update_fields=["email"])
+        self.user.email_notifications_enabled = True
+        self.user.save(update_fields=["email", "email_notifications_enabled"])
         self.assertEqual(create_streak_risk_notifications(self.at(10)), 0)    # còn sớm
         self.assertEqual(create_streak_risk_notifications(self.at(19)), 1)
         n = Notification.objects.get(kind="streak_risk")
@@ -159,9 +160,38 @@ class StreakRiskTests(TestCase):
     def test_notifications_page_and_mark_read(self):
         create_streak_risk_notifications(self.at(19))
         self.client.post(reverse("login"), {"username": "a", "password": "Matkhau!2026x"})
-        self.assertContains(self.client.get(reverse("notifications")), "Sắp mất chuỗi")
+        page = self.client.get(reverse("notifications"))
+        self.assertContains(page, "Sắp mất chuỗi")
+        self.assertContains(page, 'class="notice notice-button unread"')
         self.client.post(reverse("notifications_read"))
         self.assertEqual(Notification.objects.filter(user=self.user, is_read=False).count(), 0)
+
+    def test_clicking_one_notification_marks_only_that_item_read(self):
+        first = Notification.objects.create(user=self.user, kind="coach", title="Bản tóm tắt")
+        second = Notification.objects.create(user=self.user, kind="wellbeing", title="Xu hướng")
+        self.client.force_login(self.user)
+
+        response = self.client.post(reverse("notifications_read"), {"pk": first.pk})
+
+        self.assertRedirects(response, reverse("notifications"))
+        first.refresh_from_db()
+        second.refresh_from_db()
+        self.assertTrue(first.is_read)
+        self.assertFalse(second.is_read)
+
+    @override_settings(VAPID_PUBLIC_KEY="public-test-key", VAPID_PRIVATE_KEY="private-test-key")
+    def test_notification_page_shows_browser_permission_button_when_configured(self):
+        self.client.force_login(self.user)
+        self.assertContains(
+            self.client.get(reverse("notifications")),
+            "Bật thông báo trên trình duyệt",
+        )
+
+    def test_email_settings_are_not_on_notification_page(self):
+        self.client.force_login(self.user)
+        response = self.client.get(reverse("notifications"))
+        self.assertNotContains(response, "Thông báo qua email")
+        self.assertNotContains(response, 'name="email"')
 
 
 class WellbeingTrendTests(TestCase):

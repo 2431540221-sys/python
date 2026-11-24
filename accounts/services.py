@@ -1,88 +1,10 @@
-"""Xuất / xóa dữ liệu cá nhân và thống kê ẩn danh cho admin (Task 1)."""
+"""Xóa dữ liệu cá nhân và thống kê ẩn danh cho admin."""
 from datetime import timedelta
 
 from django.conf import settings
 from django.contrib.auth import get_user_model
 from django.db.models import Avg, Count
 from django.utils import timezone
-
-
-def export_user_data(user):
-    """Toàn bộ dữ liệu của chính người dùng (kể cả journal đã được giải mã)."""
-    from habits.models import BrowserPushSubscription
-    from insights.models import DailyWellbeingIndex
-
-    habits = []
-    for habit in user.habits.all().prefetch_related("logs"):
-        habits.append({
-            "name": habit.name,
-            "description": habit.description,
-            "weekly_target": habit.weekly_target,
-            "streak_goal": habit.streak_goal,
-            "reminder_enabled": habit.reminder_enabled,
-            "reminder_time": habit.reminder_time.strftime("%H:%M") if habit.reminder_time else None,
-            "last_reminded_on": habit.last_reminded_on.isoformat() if habit.last_reminded_on else None,
-            "is_active": habit.is_active,
-            "created_at": habit.created_at.isoformat(),
-            "logs": [
-                {"date": log.date.isoformat(), "note": log.note, "created_at": log.created_at.isoformat()}
-                for log in habit.logs.all()
-            ],
-        })
-    return {
-        "exported_at": timezone.now().isoformat(),
-        "profile": {
-            "username": user.username,
-            "email": user.email,
-            "first_name": user.first_name,
-            "last_name": user.last_name,
-            "role": user.role,
-            "consent_ai": user.consent_ai,
-            "date_joined": user.date_joined.isoformat(),
-        },
-        "habits": habits,
-        "checkins": [
-            {
-                "date": c.date.isoformat(), "mood": c.mood, "sleep_hours": c.sleep_hours,
-                "activity_type": c.activity_type, "activity_minutes": c.activity_minutes, "note": c.note,
-                "created_at": c.created_at.isoformat(), "updated_at": c.updated_at.isoformat(),
-            }
-            for c in user.checkins.all()
-        ],
-        "journals": [
-            {
-                "title": j.title, "content": j.content, "tags": j.tags,
-                "created_at": j.created_at.isoformat(), "updated_at": j.updated_at.isoformat(),
-            }
-            for j in user.journals.all()
-        ],
-        "notifications": [
-            {"kind": n.kind, "title": n.title, "body": n.body, "day": n.day.isoformat(),
-             "habit_id": n.habit_id, "is_read": n.is_read, "created_at": n.created_at.isoformat()}
-            for n in user.notifications.all()
-        ],
-        "wellbeing_indices": [
-            {
-                "date": index.date.isoformat(), "score": index.score,
-                "mood_score": index.mood_score, "sleep_score": index.sleep_score,
-                "activity_score": index.activity_score, "habit_score": index.habit_score,
-                "coverage_percent": index.coverage_percent,
-            }
-            for index in DailyWellbeingIndex.objects.filter(user=user)
-        ],
-        "push_subscriptions": [
-            {"endpoint": subscription.endpoint, "created_at": subscription.created_at.isoformat()}
-            for subscription in BrowserPushSubscription.objects.filter(user=user)
-        ],
-        "coach_reports": [
-            {
-                "week_start": r.week_start.isoformat(), "week_end": r.week_end.isoformat(), "summary": r.summary,
-                "patterns": r.patterns, "goals": r.goals, "actions": r.actions, "source": r.source,
-                "created_at": r.created_at.isoformat(), "updated_at": r.updated_at.isoformat(),
-            }
-            for r in user.coach_reports.all()
-        ],
-    }
 
 
 def delete_user_data(user):

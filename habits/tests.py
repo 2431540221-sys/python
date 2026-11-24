@@ -62,14 +62,15 @@ class HabitFlowTests(TestCase):
         self.assertEqual(r.status_code, 200)
         self.assertFalse(Habit.objects.exists())
 
-    def test_tick_seven_days_in_a_row_increases_streak(self):
-        """Demo thầy yêu cầu: tick hoàn thành 7 ngày liên tiếp thì streak tăng dần.
-        (Chuỗi tính lùi từ hôm nay, nên tick hôm nay trước rồi lùi dần về các ngày trước.)"""
+    def test_habit_can_only_be_marked_for_today(self):
         habit = Habit.objects.create(user=self.user, name="Đi bộ")
         today = timezone.localdate()
-        for i in range(1, 8):
-            self.client.post(reverse("habit_toggle", args=[habit.pk]), {"date": (today - timedelta(days=i - 1)).isoformat()})
-            self.assertEqual(get_habit_stats(habit)["current_streak"], i)
+        for day in (today - timedelta(days=1), today + timedelta(days=1)):
+            self.client.post(reverse("habit_toggle", args=[habit.pk]), {"date": day.isoformat()})
+        self.assertFalse(habit.logs.exists())
+
+        self.client.post(reverse("habit_toggle", args=[habit.pk]), {"date": today.isoformat()})
+        self.assertEqual(list(habit.logs.values_list("date", flat=True)), [today])
 
     def test_skip_a_day_then_streak_is_zero(self):
         """Demo thầy yêu cầu: bỏ 1 ngày thì streak về 0."""
@@ -80,17 +81,39 @@ class HabitFlowTests(TestCase):
         self.assertEqual(get_habit_stats(habit)["current_streak"], 0)
         self.assertEqual(get_habit_stats(habit)["longest_streak"], 7)
 
-    def test_toggle_twice_unmarks(self):
+    def test_marking_twice_keeps_habit_completed_once(self):
         habit = Habit.objects.create(user=self.user, name="Đi bộ")
         self.client.post(reverse("habit_toggle", args=[habit.pk]))
         self.assertEqual(habit.logs.count(), 1)
         self.client.post(reverse("habit_toggle", args=[habit.pk]))
-        self.assertEqual(habit.logs.count(), 0)
+        self.assertEqual(habit.logs.count(), 1)
+        self.assertTrue(get_habit_stats(habit)["done_today"])
 
     def test_cannot_mark_future_day(self):
         habit = Habit.objects.create(user=self.user, name="Đi bộ")
         self.client.post(reverse("habit_toggle", args=[habit.pk]), {"date": (timezone.localdate() + timedelta(days=1)).isoformat()})
         self.assertEqual(habit.logs.count(), 0)
+
+    def test_habit_detail_calendar_is_month_aligned_and_read_only(self):
+        habit = Habit.objects.create(user=self.user, name="Đi bộ")
+        today = timezone.localdate()
+        response = self.client.get(
+            reverse("habit_detail", args=[habit.pk]),
+            {"month": today.month, "year": today.year},
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(len(response.context["calendar"]) % 7, 0)
+        self.assertContains(response, "Xem tháng khác")
+        self.assertContains(response, "Hoàn thành hôm nay")
+        self.assertNotContains(response, 'name="date"')
+
+        past_month = today.replace(day=1) - timedelta(days=1)
+        other_month = self.client.get(
+            reverse("habit_detail", args=[habit.pk]),
+            {"month": past_month.month, "year": past_month.year},
+        )
+        self.assertNotContains(other_month, "Hoàn thành hôm nay")
 
 
 class ReminderTests(TestCase):
@@ -102,7 +125,8 @@ class ReminderTests(TestCase):
 
     def test_reminder_sent_once_when_due(self):
         self.user.email = "a@example.com"
-        self.user.save(update_fields=["email"])
+        self.user.email_notifications_enabled = True
+        self.user.save(update_fields=["email", "email_notifications_enabled"])
         Habit.objects.create(user=self.user, name="Uống nước", reminder_enabled=True, reminder_time=time(8, 0))
         self.assertEqual(send_due_reminders(self.now_at(7, 59)), 0)       # chưa tới giờ
         self.assertEqual(send_due_reminders(self.now_at(8, 1)), 1)        # tới giờ
@@ -122,6 +146,17 @@ class ReminderTests(TestCase):
 
 
 class PushDeliveryTests(TestCase):
+    def test_notification_email_requires_explicit_opt_in(self):
+        user = User.objects.create_user(
+            "email-opt-out", password="Matkhau!2026x", email="test@example.com"
+        )
+        notification = Notification.objects.create(user=user, title="Nhắc nhở", body="Nội dung")
+
+        with mock.patch("habits.services.send_mail") as send_mail:
+            deliver_notification(notification)
+
+        send_mail.assert_not_called()
+
     def test_notification_is_sent_to_registered_browser(self):
         user = User.objects.create_user("push", password="Matkhau!2026x")
         notification = Notification.objects.create(user=user, title="Nhắc nhở", body="Nội dung")
@@ -141,7 +176,10 @@ class PushDeliveryTests(TestCase):
         self.assertIn("Nhắc nhở", webpush.call_args.kwargs["data"])
 
     def test_push_is_attempted_even_when_smtp_is_unavailable(self):
-        user = User.objects.create_user("pushmail", password="Matkhau!2026x", email="test@example.com")
+        user = User.objects.create_user(
+            "pushmail", password="Matkhau!2026x", email="test@example.com",
+            email_notifications_enabled=True,
+        )
         notification = Notification.objects.create(user=user, title="Nhắc nhở", body="Nội dung")
         BrowserPushSubscription.objects.create(
             user=user, endpoint="https://fcm.googleapis.com/fcm/send/example",

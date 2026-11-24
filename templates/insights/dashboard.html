@@ -66,8 +66,13 @@
       <div class="habit" style="grid-template-columns:1fr auto;padding:10px 0">
         <div><a href="{% url 'habit_detail' h.pk %}">{{ h.name }}</a>
           <div class="habit-meta">{% if h.stats.current_streak %}<span class="streak">Chuỗi {{ h.stats.current_streak }}</span>{% else %}<span class="streak zero">Chưa có chuỗi</span>{% endif %}</div></div>
-        <form method="post" action="{% url 'habit_toggle' h.pk %}">{% csrf_token %}
-          <button class="btn small {% if h.stats.done_today %}ghost{% endif %}" type="submit">{% if h.stats.done_today %}Đã xong{% else %}Hoàn thành{% endif %}</button></form>
+        {% if h.stats.done_today %}
+          <span class="btn small ghost" aria-disabled="true">Đã xong</span>
+        {% else %}
+          <form method="post" action="{% url 'habit_toggle' h.pk %}">{% csrf_token %}
+            <button class="btn small" type="submit">Hoàn thành</button>
+          </form>
+        {% endif %}
       </div>
     {% empty %}
       <div class="empty"><p>Chưa có thói quen nào.</p><a class="btn small" href="{% url 'habit_create' %}">Thêm thói quen</a></div>
@@ -76,9 +81,14 @@
   <section class="panel">
     <h2>Thông báo gần đây</h2>
     {% for n in recent_notifications %}
-      <div class="notice {% if not n.is_read %}unread{% endif %}" style="grid-template-columns:12px 1fr">
-        <span class="dot"></span><div><strong>{{ n.title }}</strong><div class="muted small">{{ n.body }}</div></div>
-      </div>
+      <form method="post" action="{% url 'notifications_read' %}" class="notice-form">
+        {% csrf_token %}
+        <input type="hidden" name="pk" value="{{ n.pk }}">
+        <button type="submit" class="notice notice-button {% if not n.is_read %}unread{% endif %}" style="grid-template-columns:12px 1fr">
+          <span class="dot" aria-hidden="true"></span>
+          <span class="notice-content"><strong>{{ n.title }}</strong><span class="muted small">{{ n.body }}</span></span>
+        </button>
+      </form>
     {% empty %}
       <div class="empty"><p>Chưa có thông báo nào.</p></div>
     {% endfor %}

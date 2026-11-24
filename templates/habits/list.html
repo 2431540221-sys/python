@@ -21,10 +21,13 @@
         {% for d in habit.week_grid %}<span class="{% if d.done %}done{% endif %} {% if d.is_today %}today{% endif %}" title="{{ d.date|date:'d/m' }}"></span>{% endfor %}
       </div>
     </div>
-    <form method="post" action="{% url 'habit_toggle' habit.pk %}">{% csrf_token %}
-      {% if habit.stats.done_today %}<button class="btn ghost" type="submit">Đã xong hôm nay · bỏ</button>
-      {% else %}<button class="btn" type="submit">Hoàn thành hôm nay</button>{% endif %}
-    </form>
+    {% if habit.stats.done_today %}
+      <span class="btn ghost" aria-disabled="true">Đã xong hôm nay</span>
+    {% else %}
+      <form method="post" action="{% url 'habit_toggle' habit.pk %}">{% csrf_token %}
+        <button class="btn" type="submit">Hoàn thành hôm nay</button>
+      </form>
+    {% endif %}
   </div>
 {% empty %}
   <div class="empty"><p>Bạn chưa có thói quen nào. Hãy bắt đầu với một việc chỉ mất 2 phút mỗi ngày.</p><a class="btn" href="{% url 'habit_create' %}">Thêm thói quen đầu tiên</a></div>

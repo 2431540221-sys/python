@@ -40,3 +40,34 @@ class LoginForm(BootstrapFormMixin, AuthenticationForm):
         "invalid_login": "Sai tên đăng nhập hoặc mật khẩu.",
         "inactive": "Tài khoản này đã bị khóa.",
     }
+
+
+class ProfileForm(BootstrapFormMixin, forms.ModelForm):
+    class Meta:
+        model = User
+        fields = ("username", "first_name", "last_name", "email")
+        labels = {
+            "username": "Tên đăng nhập",
+            "first_name": "Tên",
+            "last_name": "Họ",
+            "email": "Email",
+        }
+
+
+class UserPreferencesForm(BootstrapFormMixin, forms.ModelForm):
+    class Meta:
+        model = User
+        fields = ("consent_ai", "email_notifications_enabled")
+        labels = {
+            "consent_ai": "Cho phép AI Coach sử dụng dữ liệu wellbeing tổng hợp và câu hỏi tôi chủ động gửi.",
+            "email_notifications_enabled": "Gửi thông báo của ứng dụng đến email của tôi.",
+        }
+
+    def clean(self):
+        cleaned_data = super().clean()
+        if cleaned_data.get("email_notifications_enabled") and not self.instance.email:
+            self.add_error(
+                "email_notifications_enabled",
+                "Hãy thêm email trong mục Thông tin cá nhân trước khi bật thông báo email.",
+            )
+        return cleaned_data

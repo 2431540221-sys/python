@@ -13,6 +13,9 @@ class User(AbstractUser):
     consent_ai = models.BooleanField(
         "Đồng ý cho AI coach đọc số liệu của tôi", default=False
     )
+    email_notifications_enabled = models.BooleanField(
+        "Nhận thông báo qua email", default=False
+    )
 
     def save(self, *args, **kwargs):
         if self.is_superuser:

@@ -22,15 +22,48 @@
 </section>
 {% endif %}
 <section class="panel">
-  <h2>Lịch 5 tuần gần nhất</h2>
-  <p class="small muted">Bấm vào một ngày để đánh dấu hoặc bỏ đánh dấu (kể cả ngày đã qua). Ô viền vàng là hôm nay.</p>
-  <div class="calendar">
-    {% for d in calendar %}
-      <form method="post" action="{% url 'habit_toggle' habit.pk %}">{% csrf_token %}
-        <input type="hidden" name="date" value="{{ d.date|date:'Y-m-d' }}"><input type="hidden" name="next" value="detail">
-        <button type="submit" class="{% if d.done %}done{% endif %} {% if d.is_today %}today{% endif %}" aria-pressed="{% if d.done %}true{% else %}false{% endif %}" title="{{ d.date|date:'d/m/Y' }}">{{ d.date|date:"j" }}</button>
+  <div class="calendar-layout">
+    <div>
+      <h2>Tháng {{ selected_month }}/{{ selected_year }}</h2>
+      <p class="small muted">Lịch hiển thị đúng theo thứ trong tuần. Ô viền vàng là hôm nay; ô xanh là ngày đã hoàn thành.</p>
+      <div class="calendar">
+        <div class="dow">T2</div><div class="dow">T3</div><div class="dow">T4</div>
+        <div class="dow">T5</div><div class="dow">T6</div><div class="dow">T7</div><div class="dow">CN</div>
+        {% for d in calendar %}
+          <div class="calendar-day {% if d.done %}done{% endif %} {% if d.is_today %}today{% endif %} {% if d.is_blank %}blank{% endif %}"
+               {% if d.date %}aria-label="{{ d.date|date:'d/m/Y' }}{% if d.done %}, đã hoàn thành{% endif %}"{% else %}aria-hidden="true"{% endif %}>
+            {% if d.number %}{{ d.number }}{% endif %}
+          </div>
+        {% endfor %}
+      </div>
+      <p class="small muted" style="margin-top:12px">Các tháng khác chỉ để xem lịch sử; không thể điểm danh cho ngày quá khứ hoặc tương lai.</p>
+    </div>
+    <aside class="calendar-sidebar">
+      <h3>Xem tháng khác</h3>
+      <form method="get" class="calendar-picker">
+        <label for="calendar-month">Tháng</label>
+        <select id="calendar-month" name="month">
+          {% for item in calendar_months %}
+            <option value="{{ item.number }}" {% if item.number == selected_month %}selected{% endif %}>{{ item.name }}</option>
+          {% endfor %}
+        </select>
+        <label for="calendar-year">Năm</label>
+        <input id="calendar-year" type="number" name="year" min="1" max="9999" value="{{ selected_year }}" required>
+        <button class="btn small" type="submit">Xem lịch</button>
       </form>
-    {% endfor %}
+      {% if selected_month == today.month and selected_year == today.year %}
+        <div class="today-check">
+          <h3>Điểm danh hôm nay</h3>
+          <p>{{ today|date:"d/m/Y" }} · {% if stats.done_today %}Đã hoàn thành{% else %}Chưa hoàn thành{% endif %}</p>
+          {% if not stats.done_today %}
+            <form method="post" action="{% url 'habit_toggle' habit.pk %}">{% csrf_token %}
+              <input type="hidden" name="next" value="detail">
+              <button class="btn" type="submit">Hoàn thành hôm nay</button>
+            </form>
+          {% endif %}
+        </div>
+      {% endif %}
+    </aside>
   </div>
 </section>
 {% endblock %}

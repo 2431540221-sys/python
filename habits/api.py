@@ -7,7 +7,7 @@ from accounts.apiutils import ApiError, api, form_errors, read_json
 
 from .forms import HabitForm
 from .models import Habit
-from .services import get_habit_stats, toggle_day
+from .services import get_habit_stats, mark_day_done
 
 
 def habit_json(habit):
@@ -63,12 +63,12 @@ def habit_detail(request, pk):
 
 @api(methods=("POST",))
 def habit_check(request, pk):
-    """Đánh dấu hoàn thành (hoặc bỏ đánh dấu) một ngày. Body: {"date": "YYYY-MM-DD"} (mặc định hôm nay)."""
+    """Đánh dấu hoàn thành hôm nay một lần. Body: {"date": "YYYY-MM-DD"} (mặc định hôm nay)."""
     habit = get_object_or_404(Habit, pk=pk, user=request.user)
     raw = read_json(request).get("date")
     try:
         day = date.fromisoformat(raw) if raw else None
-        done = toggle_day(habit, day)
-    except ValueError as exc:
+        mark_day_done(habit, day)
+    except (TypeError, ValueError) as exc:
         raise ApiError(400, "invalid_date", str(exc))
-    return JsonResponse({"done": done, "habit": habit_json(habit)})
+    return JsonResponse({"done": True, "habit": habit_json(habit)})
