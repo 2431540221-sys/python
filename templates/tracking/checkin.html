@@ -1,8 +1,15 @@
 {% extends "base.html" %}
 {% block title %}Check-in{% endblock %}
 {% block content %}
-<div class="page-head"><div><h1>Check-in hôm nay</h1><p>Mất chưa tới 1 phút. {% if existing %}Hôm nay bạn đã check-in, lưu lại sẽ cập nhật bản ghi cũ.{% endif %}</p></div></div>
+<div class="page-head"><div><h1>Check-in hôm nay</h1><p>Mỗi ngày chỉ có thể gửi một check-in. Mất chưa tới 1 phút.</p></div></div>
 <section class="panel form-narrow" style="max-width:680px">
+  {% if existing %}
+    <div class="alert">
+      <h3>Hôm nay bạn đã check-in</h3>
+      <p>Chỉ có thể gửi một check-in trong ngày. Bản ghi hôm nay đã được lưu.</p>
+      <a class="btn small" href="{% url 'history' %}">Xem lịch sử</a>
+    </div>
+  {% else %}
   <form method="post" novalidate>{% csrf_token %}
     {% if form.non_field_errors %}<div class="errorbox">{{ form.non_field_errors|join:" " }}</div>{% endif %}
     <div class="field">
@@ -25,5 +32,6 @@
     {% with field=form.note %}{% include "partials/field.html" %}{% endwith %}
     <div class="btn-row"><button class="btn" type="submit">Lưu check-in</button><a class="btn ghost" href="{% url 'history' %}">Xem lịch sử</a></div>
   </form>
+  {% endif %}
 </section>
 {% endblock %}

@@ -18,20 +18,24 @@
     </p>
   </form>
   {% else %}
-  <p class="small muted">Web Push chưa được cấu hình trên máy chủ. Cần thiết lập cặp khóa VAPID.</p>
+  <p class="small muted">Web Push chưa được cấu hình trên máy chủ. Hãy tạo khóa bằng <code>python manage.py generate_vapid_keys</code>, thêm VAPID public/private key vào <code>.env</code>, rồi khởi động lại ứng dụng.</p>
   {% endif %}
 </section>
 <section class="panel">
 {% for n in items %}
-  <div class="notice {% if not n.is_read %}unread{% endif %}">
-    <span class="dot" aria-hidden="true"></span>
-    <div>
-      <strong>{{ n.title }}</strong> <span class="badge {% if n.kind == 'streak_risk' %}sun{% endif %}">{{ n.get_kind_display }}</span>
-      <div class="muted">{{ n.body }}</div>
-      {% if n.habit and n.kind != 'coach' %}<a class="small" href="{% url 'habit_detail' n.habit.pk %}">Mở thói quen</a>{% endif %}
-    </div>
-    <time datetime="{{ n.created_at|date:'c' }}">{{ n.created_at|date:"d/m H:i" }}</time>
-  </div>
+  <form method="post" action="{% url 'notifications_read' %}" class="notice-form">
+    {% csrf_token %}
+    <input type="hidden" name="pk" value="{{ n.pk }}">
+    <button type="submit" class="notice notice-button {% if not n.is_read %}unread{% endif %}">
+      <span class="dot" aria-hidden="true"></span>
+      <span class="notice-content">
+        <span><strong>{{ n.title }}</strong> <span class="badge {% if n.kind == 'streak_risk' %}sun{% endif %}">{{ n.get_kind_display }}</span></span>
+        <span class="muted">{{ n.body }}</span>
+      </span>
+      <time datetime="{{ n.created_at|date:'c' }}">{{ n.created_at|date:"d/m H:i" }}</time>
+    </button>
+  </form>
+  {% if n.habit and n.kind != 'coach' %}<p class="small" style="margin:0 0 10px 26px"><a href="{% url 'habit_detail' n.habit.pk %}">Mở thói quen</a></p>{% endif %}
 {% empty %}
   <div class="empty"><p>Chưa có thông báo nào. Bật nhắc nhở cho một thói quen để nhận thông báo đúng giờ.</p><a class="btn" href="{% url 'habit_list' %}">Đi tới thói quen</a></div>
 {% endfor %}

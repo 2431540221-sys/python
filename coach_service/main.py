@@ -4,13 +4,18 @@ import os
 import secrets
 import urllib.error
 import urllib.request
+from pathlib import Path
 
-from fastapi import Depends, FastAPI, Header, HTTPException
+from dotenv import load_dotenv
+from fastapi import APIRouter, Depends, FastAPI, Header, HTTPException
 from pydantic import BaseModel, Field
+
+load_dotenv(Path(__file__).resolve().parent.parent / ".env")
 
 logger = logging.getLogger(__name__)
 app = FastAPI(title="Mầm AI Coach", version="1.0.0")
 api_app = FastAPI(title="Mầm API", version="1.0.0")
+router = APIRouter()
 
 
 class GenerateRequest(BaseModel):
@@ -57,12 +62,21 @@ def verify_internal_token(x_internal_service_token: str = Header(default="")):
         raise HTTPException(status_code=401, detail="Unauthorized")
 
 
-@app.get("/health")
+@router.get("/health")
 def health():
-    return {"status": "ok"}
+    return {
+        "status": "ok",
+        "provider_configured": bool(
+            os.environ.get("CLOUDFLARE_ACCOUNT_ID")
+            and os.environ.get("CLOUDFLARE_API_TOKEN")
+        ),
+        "model": os.environ.get(
+            "CLOUDFLARE_AI_MODEL", "@cf/meta/llama-3.1-8b-instruct"
+        ),
+    }
 
 
-@app.post("/generate", dependencies=[Depends(verify_internal_token)])
+@router.post("/generate", dependencies=[Depends(verify_internal_token)])
 def generate(request: GenerateRequest):
     account_id = os.environ.get("CLOUDFLARE_ACCOUNT_ID", "")
     api_token = os.environ.get("CLOUDFLARE_API_TOKEN", "")
@@ -101,6 +115,7 @@ def generate(request: GenerateRequest):
         with urllib.request.urlopen(outbound, timeout=20) as response:
             provider_payload = json.loads(response.read().decode("utf-8"))
         result = parse_provider_response(provider_payload)
+        logger.info("Cloudflare Workers AI request succeeded using model %s.", model)
         return {"result": result}
     except urllib.error.HTTPError as exc:
         logger.error("Cloudflare Workers AI request failed with HTTP %s.", exc.code)
@@ -114,3 +129,7 @@ def generate(request: GenerateRequest):
     except Exception:
         logger.exception("AI provider request failed.")
         raise HTTPException(status_code=502, detail="AI provider request failed")
+
+
+app.include_router(router)
+api_app.include_router(router, prefix="/internal-ai")

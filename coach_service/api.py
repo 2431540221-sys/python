@@ -4,6 +4,8 @@ from datetime import date
 from django.conf import settings
 from django.contrib.auth import authenticate
 from django.core.exceptions import ValidationError
+from django.db import IntegrityError
+from django.db import transaction
 from django.http import Http404
 from django.shortcuts import get_object_or_404
 from django.utils import timezone
@@ -12,14 +14,15 @@ from fastapi.responses import JSONResponse, Response
 
 from accounts import security
 from accounts.forms import RegisterForm
-from accounts.services import admin_statistics, delete_user_data, export_user_data
+from accounts.services import admin_statistics, delete_user_data
 from accounts.tokens import create_access_token, create_refresh_token, user_from_token
 from coach import safety
 from coach.models import CoachReport
 from coach.service import ConsentRequired, generate_report
+from coach_service.main import router as internal_ai_router
 from habits.forms import HabitForm
 from habits.models import Habit, Notification
-from habits.services import get_habit_stats, toggle_day
+from habits.services import get_habit_stats, mark_day_done
 from insights.services import PERIODS, create_streak_risk_notifications, period_stats
 from tracking.forms import CheckinForm, JournalForm
 from tracking.models import DailyCheckin, JournalEntry
@@ -166,16 +169,6 @@ def me_delete(data=Depends(read_json), user=Depends(current_user)):
     return {"deleted": True, "detail": "Tài khoản và toàn bộ dữ liệu đã bị xóa."}
 
 
-@router.get("/me/export/")
-def export_me(user=Depends(current_user)):
-    payload = json.dumps(export_user_data(user), ensure_ascii=False, indent=2)
-    return Response(
-        payload,
-        media_type="application/json",
-        headers={"Content-Disposition": 'attachment; filename="du_lieu_cua_toi.json"'},
-    )
-
-
 @router.delete("/me/data/")
 def delete_me_data(user=Depends(current_user)):
     return {"deleted": delete_user_data(user)}
@@ -263,10 +256,10 @@ def habit_check(pk: int, data=Depends(read_json), user=Depends(current_user)):
     raw_day = data.get("date")
     try:
         day = date.fromisoformat(raw_day) if raw_day else None
-        done = toggle_day(habit, day)
-    except ValueError as exc:
+        mark_day_done(habit, day)
+    except (TypeError, ValueError) as exc:
         raise ApiError(400, "invalid_date", str(exc))
-    return {"done": done, "habit": habit_json(habit)}
+    return {"done": True, "habit": habit_json(habit)}
 
 
 def checkin_json(checkin):
@@ -294,28 +287,34 @@ def journal_json(journal):
 
 @router.get("/checkins/")
 def checkin_list(user=Depends(current_user)):
-    checkins = DailyCheckin.objects.filter(user=user)[:90]
+    checkins = DailyCheckin.objects.filter(user=user, date__lte=timezone.localdate())[:90]
     return {"checkins": [checkin_json(checkin) for checkin in checkins]}
 
 
 @router.post("/checkins/")
 def checkin_create(data=Depends(read_json), user=Depends(current_user)):
     try:
-        existing = (
-            DailyCheckin.objects.filter(user=user, date=data["date"]).first()
-            if data.get("date") else None
-        )
-    except (ValidationError, ValueError):
-        existing = None
-    form = CheckinForm(data, instance=existing)
+        day = date.fromisoformat(data["date"]) if data.get("date") else timezone.localdate()
+    except (TypeError, ValueError):
+        raise ApiError(400, "invalid_date", "Ngày check-in không hợp lệ.")
+    if day != timezone.localdate():
+        raise ApiError(400, "invalid_date", "Chỉ được check-in cho ngày hôm nay.")
+    if DailyCheckin.objects.filter(user=user, date=day).exists():
+        raise ApiError(409, "already_checked_in", "Bạn đã check-in hôm nay rồi.")
+    form = CheckinForm(data)
     if not form.is_valid():
         return JSONResponse(
             {"error": "validation_error", "fields": form_errors(form)}, status_code=400
         )
     checkin = form.save(commit=False)
     checkin.user = user
-    checkin.save()
-    return JSONResponse(checkin_json(checkin), status_code=200 if existing else 201)
+    checkin.date = day
+    try:
+        with transaction.atomic():
+            checkin.save()
+    except IntegrityError:
+        raise ApiError(409, "already_checked_in", "Bạn đã check-in hôm nay rồi.")
+    return JSONResponse(checkin_json(checkin), status_code=201)
 
 
 @router.get("/journals/")
@@ -417,9 +416,10 @@ def coach_weekly_create(user=Depends(current_user)):
     except ConsentRequired:
         raise ApiError(
             403, "consent_required",
-            "Bạn chưa đồng ý cho AI coach đọc số liệu (mục Quyền riêng tư).",
+            "Bạn chưa bật quyền AI Coach trong phần Tài khoản.",
         )
     return report_json(report)
 
 
 api_app.include_router(router)
+api_app.include_router(internal_ai_router, prefix="/internal-ai")

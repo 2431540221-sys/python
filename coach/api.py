@@ -27,5 +27,5 @@ def weekly(request):
     try:
         report = generate_report(request.user)
     except ConsentRequired:
-        raise ApiError(403, "consent_required", "Bạn chưa đồng ý cho AI coach đọc số liệu (mục Quyền riêng tư).")
+        raise ApiError(403, "consent_required", "Bạn chưa bật quyền AI Coach trong phần Tài khoản.")
     return JsonResponse(report_json(report), status=201)

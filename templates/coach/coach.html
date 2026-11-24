@@ -4,7 +4,7 @@
 <div class="page-head"><div><h1>AI coach</h1><p>Tóm tắt tuần và gợi ý mục tiêu nhỏ từ số liệu bạn đã ghi. Mầm không chẩn đoán y tế; bộ lọc cục bộ có thể không nhận ra mọi cách diễn đạt gián tiếp.</p></div></div>
 
 {% if not user.consent_ai %}
-<div class="alert"><h3>AI coach chưa được bật</h3><p>Hãy cho phép AI coach đọc số liệu tổng hợp (không gồm journal) trong mục Quyền riêng tư.</p><a class="btn small" href="{% url 'privacy' %}">Mở Quyền riêng tư</a></div>
+<div class="alert"><h3>AI Coach chưa được bật</h3><p>Cho phép AI Coach trong phần tùy chỉnh quyền của tài khoản để sử dụng tính năng này.</p><a class="btn small" href="{% url 'user_profile' %}#permissions">Mở tùy chỉnh quyền</a></div>
 {% else %}
 <section class="panel report">
   <div class="btn-row" style="justify-content:space-between">
@@ -24,7 +24,25 @@
 </section>
 
 <section class="panel">
-  <h2>Hỏi Mầm một điều nhỏ</h2>
+  <div class="btn-row" style="justify-content:space-between">
+    <h2>Trò chuyện với Mầm</h2>
+    {% if chat_history %}
+      <form method="post" action="{% url 'coach_clear_chat' %}">{% csrf_token %}<button class="btn small ghost" type="submit">Xóa hội thoại</button></form>
+    {% endif %}
+  </div>
+  {% if chat_history %}
+    <div class="chat-history" aria-live="polite">
+      {% for turn in chat_history %}
+        <div class="reply">
+          <p class="small muted" style="margin-bottom:4px">Bạn hỏi: {{ turn.question }}</p>
+          <p class="small muted">{% if turn.source == "llm" %}Trả lời từ Cloudflare Workers AI{% elif turn.source == "rules" %}Trả lời dự phòng (bộ luật cục bộ){% else %}Phản hồi an toàn{% endif %}</p>
+          <p style="margin-bottom:6px">{{ turn.summary }}</p>
+          {% if turn.actions %}<ul>{% for action in turn.actions %}<li>{{ action }}</li>{% endfor %}</ul>{% endif %}
+          {% if turn.level == "ok" %}<p class="disclaimer">{{ disclaimer }}</p>{% endif %}
+        </div>
+      {% endfor %}
+    </div>
+  {% endif %}
   <form method="post" action="{% url 'coach_ask' %}">{% csrf_token %}
     <div class="field"><label for="q" class="sr-only">Câu hỏi</label><textarea id="q" name="question" maxlength="500" rows="3" style="min-height:90px" placeholder="Ví dụ: Mình hay trì hoãn thói quen buổi tối, nên bắt đầu thế nào?"></textarea></div>
     <button class="btn ghost" type="submit">Gửi câu hỏi</button>

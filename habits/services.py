@@ -5,10 +5,11 @@ Logic nghiệp vụ của Task 2 (tách khỏi views để dễ test; Task 4 và
     get_habit_stats(habit)          -> dict số liệu 1 thói quen
     send_due_reminders()            -> job nhắc nhở theo giờ
 """
-import logging
+import calendar
 import json
+import logging
 import smtplib
-from datetime import timedelta
+from datetime import date, timedelta
 
 from django.conf import settings
 from django.core.exceptions import ImproperlyConfigured
@@ -17,13 +18,12 @@ from django.utils import timezone
 
 from .models import BrowserPushSubscription, Habit, HabitLog, Notification
 
-MAX_BACKFILL_DAYS = 60   # cho phép tick bù tối đa 60 ngày trước
 logger = logging.getLogger(__name__)
 
 
 def send_notification_email(notification):
-    """Gửi email cho Notification mới đã tạo; không gửi trùng và bỏ qua nếu thiếu email."""
-    if not notification.user.email:
+    """Gửi email khi người dùng đã nhập địa chỉ và chủ động bật nhận thông báo."""
+    if not notification.user.email or not notification.user.email_notifications_enabled:
         return False
     try:
         sent = send_mail(
@@ -125,13 +125,14 @@ def count_in_week(done_dates, today=None):
     return sum(1 for d in set(done_dates) if week_start <= d <= today)
 
 
-def get_done_dates(habit):
-    return set(habit.logs.values_list("date", flat=True))
+def get_done_dates(habit, today=None):
+    today = today or timezone.localdate()
+    return set(habit.logs.filter(date__lte=today).values_list("date", flat=True))
 
 
 def get_habit_stats(habit, today=None):
     today = today or timezone.localdate()
-    done_dates = get_done_dates(habit)
+    done_dates = get_done_dates(habit, today)
     current, longest = calculate_streaks(done_dates, today)
     week_done = count_in_week(done_dates, today)
     goal = habit.streak_goal
@@ -150,24 +151,49 @@ def get_habit_stats(habit, today=None):
     }
 
 
-def toggle_day(habit, day=None):
-    """Bấm lần 1: đánh dấu xong ngày `day`. Bấm lần 2: bỏ đánh dấu. Trả về True nếu đang là 'đã xong'."""
+def mark_day_done(habit, day=None):
+    """Đánh dấu hoàn thành tối đa một lần và chỉ cho ngày hôm nay."""
     day = day or timezone.localdate()
     today = timezone.localdate()
-    if day > today:
-        raise ValueError("Không thể đánh dấu cho ngày trong tương lai.")
-    if (today - day).days > MAX_BACKFILL_DAYS:
-        raise ValueError(f"Chỉ được đánh dấu bù tối đa {MAX_BACKFILL_DAYS} ngày trước.")
+    if day != today:
+        raise ValueError("Chỉ có thể điểm danh cho ngày hôm nay.")
     _, created = HabitLog.objects.get_or_create(habit=habit, date=day)
-    if not created:
-        HabitLog.objects.filter(habit=habit, date=day).delete()
     return created
+
+
+def month_calendar(habit, year, month, today=None):
+    """Tạo lưới tháng từ thứ Hai; các ô chỉ xem, không thay đổi log."""
+    today = today or timezone.localdate()
+    first_day = date(year, month, 1)
+    days_in_month = calendar.monthrange(year, month)[1]
+    done = set(
+        habit.logs.filter(
+            date__gte=first_day,
+            date__lte=min(date(year, month, days_in_month), today),
+        ).values_list("date", flat=True)
+    )
+    cells = [
+        {"date": None, "number": "", "done": False, "is_today": False, "is_blank": True}
+        for _ in range(first_day.weekday())
+    ]
+    for number in range(1, days_in_month + 1):
+        day = date(year, month, number)
+        cells.append({
+            "date": day,
+            "number": number,
+            "done": day in done,
+            "is_today": day == today,
+            "is_blank": False,
+        })
+    while len(cells) % 7:
+        cells.append({"date": None, "number": "", "done": False, "is_today": False, "is_blank": True})
+    return cells
 
 
 def recent_days(habit, n=28, today=None, done=None):
     """n ngày gần nhất (cũ -> mới) kèm trạng thái xong/chưa, dùng vẽ lưới lịch."""
     today = today or timezone.localdate()
-    done = get_done_dates(habit) if done is None else done
+    done = get_done_dates(habit, today) if done is None else done
     return [
         {"date": d, "done": d in done, "is_today": d == today}
         for d in (today - timedelta(days=i) for i in range(n - 1, -1, -1))
@@ -179,7 +205,7 @@ def habits_with_stats(user, today=None, days=7):
     today = today or timezone.localdate()
     result = []
     for habit in Habit.objects.filter(user=user, is_active=True):
-        done = get_done_dates(habit)
+        done = get_done_dates(habit, today)
         habit.stats = get_habit_stats(habit, today)
         habit.week_grid = recent_days(habit, days, today, done)
         result.append(habit)

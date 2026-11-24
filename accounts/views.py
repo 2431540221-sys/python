@@ -1,19 +1,15 @@
-import json
-
 from django.conf import settings
 from django.contrib import messages
 from django.contrib.auth import authenticate
 from django.contrib.auth.decorators import login_required
 from django.core.exceptions import PermissionDenied
-from django.http import HttpResponse
 from django.shortcuts import redirect, render
 from django.utils.http import url_has_allowed_host_and_scheme
-from django.views.decorators.http import require_POST
+from django.views.decorators.http import require_http_methods, require_POST
 
 from . import security
-from .forms import LoginForm, RegisterForm
-from .sample_data import seed_user_data
-from .services import admin_statistics, delete_user_data, export_user_data
+from .forms import LoginForm, ProfileForm, RegisterForm, UserPreferencesForm
+from .services import admin_statistics, delete_user_data
 from .tokens import create_web_token
 
 
@@ -75,21 +71,36 @@ def logout_view(request):
 
 
 @login_required
-def privacy_view(request):
+@require_http_methods(["GET", "POST"])
+def profile_view(request):
+    profile_form = ProfileForm(instance=request.user)
+    preferences_form = UserPreferencesForm(instance=request.user)
     if request.method == "POST":
-        request.user.consent_ai = "consent_ai" in request.POST
-        request.user.save(update_fields=["consent_ai"])
-        messages.success(request, "Đã cập nhật lựa chọn về AI coach.")
-        return redirect("privacy")
-    return render(request, "accounts/privacy.html")
+        section = request.POST.get("section")
+        if section == "personal":
+            profile_form = ProfileForm(request.POST, instance=request.user)
+            if profile_form.is_valid():
+                profile_form.save()
+                messages.success(request, "Đã cập nhật thông tin cá nhân.")
+                return redirect("user_profile")
+        elif section == "preferences":
+            preferences_form = UserPreferencesForm(request.POST, instance=request.user)
+            if preferences_form.is_valid():
+                user = preferences_form.save(commit=False)
+                user.save(update_fields=["consent_ai", "email_notifications_enabled"])
+                messages.success(request, "Đã lưu tùy chỉnh quyền.")
+                return redirect("user_profile")
+        else:
+            messages.error(request, "Yêu cầu cập nhật tài khoản không hợp lệ.")
+            return redirect("user_profile")
+    return render(request, "accounts/profile.html", {
+        "profile_form": profile_form,
+        "preferences_form": preferences_form,
+    })
 
 
-@login_required
-def export_view(request):
-    payload = json.dumps(export_user_data(request.user), ensure_ascii=False, indent=2)
-    response = HttpResponse(payload, content_type="application/json; charset=utf-8")
-    response["Content-Disposition"] = 'attachment; filename="du_lieu_cua_toi.json"'
-    return response
+def privacy_redirect(request):
+    return redirect("user_profile")
 
 
 @login_required
@@ -97,10 +108,10 @@ def export_view(request):
 def delete_data_view(request):
     if request.POST.get("confirm") != "yes":
         messages.error(request, "Hãy tick ô xác nhận trước khi xóa dữ liệu.")
-        return redirect("privacy")
+        return redirect("user_profile")
     counts = delete_user_data(request.user)
     messages.success(request, f"Đã xóa {sum(counts.values())} bản ghi dữ liệu cá nhân. Tài khoản vẫn được giữ.")
-    return redirect("privacy")
+    return redirect("user_profile")
 
 
 @login_required
@@ -109,19 +120,11 @@ def delete_account_view(request):
     password = request.POST.get("password", "")
     if not authenticate(request, username=request.user.username, password=password):
         messages.error(request, "Mật khẩu không đúng, tài khoản chưa bị xóa.")
-        return redirect("privacy")
+        return redirect("user_profile")
     request.user.delete()     # CASCADE: xóa toàn bộ dữ liệu liên quan
     response = redirect("login")
     messages.success(request, "Tài khoản và toàn bộ dữ liệu của bạn đã được xóa.")
     return clear_auth_cookie(response)
-
-
-@login_required
-@require_POST
-def sample_data_view(request):
-    seed_user_data(request.user, 30)
-    messages.success(request, "Đã nạp dữ liệu mẫu 30 ngày vào tài khoản của bạn.")
-    return redirect("dashboard")
 
 
 @login_required
