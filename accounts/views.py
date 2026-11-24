@@ -45,7 +45,7 @@ def register_view(request):
     if request.method == "POST" and form.is_valid():
         user = form.save()
         messages.success(request, "Chào mừng bạn đến với Mầm! Hãy tạo thói quen đầu tiên nhé.")
-        return set_auth_cookie(redirect("habits"), user)
+        return set_auth_cookie(redirect("habit_list"), user)
     return render(request, "accounts/register.html", {"form": form})
 
 

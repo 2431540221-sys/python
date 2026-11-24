@@ -1,4 +1,4 @@
-"""Gọi Gemini qua REST (không cần cài SDK). Mọi lỗi đều trả về None để hệ thống dùng bộ luật dự phòng."""
+"""Gọi service FastAPI cho AI coach; không gửi danh tính hoặc nội dung journal."""
 import json
 import logging
 import urllib.error
@@ -10,27 +10,32 @@ logger = logging.getLogger(__name__)
 
 
 def llm_available():
-    return bool(settings.GEMINI_API_KEY)
+    return bool(settings.COACH_SERVICE_URL and settings.INTERNAL_SERVICE_TOKEN)
 
 
-def call_llm_json(prompt, timeout=20):
+def call_llm_json(prompt, timeout=None):
     if not llm_available():
         return None
-    url = f"https://generativelanguage.googleapis.com/v1beta/models/{settings.GEMINI_MODEL}:generateContent"
-    body = {
-        "contents": [{"parts": [{"text": prompt}]}],
-        "generationConfig": {"temperature": 0.4, "responseMimeType": "application/json"},
-    }
+    url = f"{settings.COACH_SERVICE_URL}/generate"
+    body = {"prompt": prompt}
     request = urllib.request.Request(
         url, data=json.dumps(body).encode("utf-8"), method="POST",
-        headers={"Content-Type": "application/json", "x-goog-api-key": settings.GEMINI_API_KEY},
+        headers={
+            "Content-Type": "application/json",
+            "X-Internal-Service-Token": settings.INTERNAL_SERVICE_TOKEN,
+        },
     )
     try:
-        with urllib.request.urlopen(request, timeout=timeout) as response:
+        request_timeout = settings.COACH_SERVICE_TIMEOUT if timeout is None else min(
+            timeout, settings.COACH_SERVICE_TIMEOUT
+        )
+        with urllib.request.urlopen(request, timeout=request_timeout) as response:
             payload = json.loads(response.read().decode("utf-8"))
-        text = payload["candidates"][0]["content"]["parts"][0]["text"]
-        data = json.loads(text)
-        return data if isinstance(data, dict) else None
-    except (urllib.error.URLError, TimeoutError, KeyError, IndexError, ValueError):
-        logger.warning("Gọi LLM thất bại, dùng bộ luật dự phòng.", exc_info=True)
+        if not isinstance(payload, dict) or not isinstance(payload.get("result"), dict):
+            logger.warning("FastAPI AI coach returned an invalid response; using rule-based coaching.")
+            return None
+        data = payload.get("result")
+        return data
+    except (urllib.error.URLError, TimeoutError, KeyError, TypeError, ValueError):
+        logger.warning("FastAPI AI coach không phản hồi hợp lệ; dùng bộ luật dự phòng.", exc_info=True)
         return None

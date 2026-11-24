@@ -1,16 +1,21 @@
 """Task 5 - kiểm thử AI coach: đồng ý của người dùng, bộ lọc nhạy cảm, disclaimer, không lộ journal."""
 import json
+import urllib.request
 from unittest import mock
 
-from django.test import TestCase
+from django.test import TestCase, TransactionTestCase, override_settings
 from django.urls import reverse
 from django.core import mail
+from django.utils import timezone
+from fastapi.testclient import TestClient
 
 from accounts.sample_data import seed_user_data
 from accounts.models import User
 from accounts.tokens import create_access_token
 from coach import safety
+from coach.llm import call_llm_json
 from coach.service import ConsentRequired, build_week_data, generate_report
+from coach_service.main import GenerateRequest, generate, verify_internal_token
 from tracking.models import JournalEntry
 
 
@@ -106,6 +111,59 @@ class CoachReportTests(TestCase):
         with mock.patch("coach.service.llm.call_llm_json", return_value=None):
             self.assertEqual(generate_report(self.user).source, "rules")
 
+    @override_settings(
+        COACH_SERVICE_URL="http://coach-service",
+        INTERNAL_SERVICE_TOKEN="internal-test-token",
+        COACH_SERVICE_TIMEOUT=25,
+    )
+    def test_llm_calls_fastapi_with_internal_token(self):
+        response = mock.MagicMock()
+        response.read.return_value = b'{"result":{"summary":"A small step"}}'
+        http_response = mock.MagicMock()
+        http_response.__enter__.return_value = response
+
+        with mock.patch.object(urllib.request, "urlopen", return_value=http_response) as urlopen:
+            result = call_llm_json('{"anonymous":"weekly metrics"}')
+
+        self.assertEqual(result, {"summary": "A small step"})
+        request = urlopen.call_args.args[0]
+        self.assertEqual(request.full_url, "http://coach-service/generate")
+        self.assertEqual(request.get_header("X-internal-service-token"), "internal-test-token")
+        self.assertEqual(urlopen.call_args.kwargs["timeout"], 25)
+        self.assertEqual(json.loads(request.data), {"prompt": '{"anonymous":"weekly metrics"}'})
+
+    def test_fastapi_authenticates_internal_service_and_calls_cloudflare_ai(self):
+        response = mock.MagicMock()
+        response.read.return_value = (
+            b'{"success":true,"result":{"response":{"summary":"A small step"}}}'
+        )
+        http_response = mock.MagicMock()
+        http_response.__enter__.return_value = response
+        with mock.patch.dict("os.environ", {
+            "INTERNAL_SERVICE_TOKEN": "internal-test-token",
+            "CLOUDFLARE_ACCOUNT_ID": "account-id",
+            "CLOUDFLARE_API_TOKEN": "test-token",
+            "CLOUDFLARE_AI_MODEL": "@cf/meta/test-model",
+        }):
+            verify_internal_token("internal-test-token")
+            with mock.patch(
+                "coach_service.main.urllib.request.urlopen",
+                return_value=http_response,
+            ) as urlopen:
+                result = generate(GenerateRequest(prompt="anonymous weekly metrics"))
+
+        self.assertEqual(result, {"result": {"summary": "A small step"}})
+        outbound = urlopen.call_args.args[0]
+        self.assertEqual(
+            outbound.full_url,
+            "https://api.cloudflare.com/client/v4/accounts/account-id/ai/run/@cf/meta/test-model",
+        )
+        self.assertEqual(outbound.get_header("Authorization"), "Bearer test-token")
+        self.assertEqual(urlopen.call_args.kwargs["timeout"], 20)
+        payload = json.loads(outbound.data)
+        self.assertEqual(payload["messages"][0]["content"].splitlines()[0], "anonymous weekly metrics")
+        self.assertEqual(payload["temperature"], 0.4)
+
     def test_sensitive_question_never_reaches_llm(self):
         self.client.post(reverse("login"), {"username": "coachuser", "password": "Matkhau!2026x"})
         with mock.patch("coach.service.llm.call_llm_json") as llm:
@@ -132,3 +190,39 @@ class CoachReportTests(TestCase):
         self.client.post(reverse("coach_generate"))
         r = self.client.get(reverse("coach"))
         self.assertContains(r, "không phải chẩn đoán")
+
+
+class FastApiRoutingTests(TransactionTestCase):
+    def test_project_api_is_served_through_fastapi_asgi_app(self):
+        from config.asgi import application
+
+        user = User.objects.create_user("fastapi-user", "password-123456", consent_ai=True)
+        token = create_access_token(user)
+        with TestClient(application) as fastapi_client:
+            response = fastapi_client.get(
+                "/api/me/",
+                headers={"Authorization": f"Bearer {token}"},
+            )
+            habits_response = fastapi_client.get(
+                "/api/habits/",
+                headers={"Authorization": f"Bearer {token}"},
+            )
+            checkin_response = fastapi_client.post(
+                "/api/checkins/",
+                headers={"Authorization": f"Bearer {token}"},
+                json={
+                    "date": timezone.localdate().isoformat(),
+                    "mood": 4,
+                    "sleep_hours": 7,
+                    "activity_type": "none",
+                    "activity_minutes": 0,
+                    "note": "",
+                },
+            )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json()["username"], user.username)
+        self.assertEqual(habits_response.status_code, 200)
+        self.assertEqual(habits_response.json(), {"habits": []})
+        self.assertEqual(checkin_response.status_code, 201)
+        self.assertEqual(checkin_response.json()["mood"], 4)

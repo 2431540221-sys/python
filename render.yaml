@@ -1,14 +1,21 @@
 # Render Blueprint: New + > Blueprint > chọn repo GitHub chứa project này.
 # Kiểm tra lại tên gói (plan) trong tài liệu Render trước khi deploy, gói free có thể thay đổi.
+envVarGroups:
+  - name: mam-internal-services
+    envVars:
+      - key: INTERNAL_SERVICE_TOKEN
+        generateValue: true
+
 services:
   - type: web
     name: mam-wellbeing
     runtime: python
     plan: free
     buildCommand: "./build.sh"
-    startCommand: "gunicorn config.wsgi:application --workers 2 --timeout 60"
+    startCommand: "uvicorn config.asgi:application --host 0.0.0.0 --port $PORT --workers 2"
     healthCheckPath: /accounts/login/
     envVars:
+      - fromGroup: mam-internal-services
       - key: PYTHON_VERSION
         value: 3.12.7
       - key: DEBUG
@@ -17,10 +24,10 @@ services:
         generateValue: true
       - key: JOURNAL_ENCRYPTION_KEY       # giữ cố định: mất khóa này thì journal cũ không giải mã được
         generateValue: true
-      - key: GEMINI_API_KEY                # tùy chọn: không có thì AI coach dùng bộ luật dự phòng
-        sync: false
-      - key: GEMINI_MODEL
-        value: gemini-3.8-flash
+      - key: COACH_SERVICE_URL
+        value: http://mam-coach:10000
+      - key: COACH_SERVICE_TIMEOUT
+        value: "25"
       - key: EMAIL_HOST                    # SMTP để gửi email nhắc nhở
         sync: false
       - key: EMAIL_PORT
@@ -51,6 +58,24 @@ services:
         fromDatabase:
           name: mam-db
           property: connectionString
+
+  - type: web
+    name: mam-coach
+    runtime: python
+    plan: free
+    buildCommand: "pip install -r requirements-prod.txt"
+    startCommand: "uvicorn coach_service.main:app --host 0.0.0.0 --port $PORT"
+    healthCheckPath: /health
+    envVars:
+      - fromGroup: mam-internal-services
+      - key: PYTHON_VERSION
+        value: 3.12.7
+      - key: CLOUDFLARE_ACCOUNT_ID
+        sync: false
+      - key: CLOUDFLARE_API_TOKEN
+        sync: false
+      - key: CLOUDFLARE_AI_MODEL
+        value: "@cf/meta/llama-3.1-8b-instruct"
 
 databases:
   - name: mam-db

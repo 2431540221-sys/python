@@ -2,7 +2,8 @@
 Mầm Wellbeing - cấu hình chung cho cả 5 task.
 
 Biến môi trường quan trọng khi deploy (xem README.md):
-    SECRET_KEY, DEBUG, DATABASE_URL, JOURNAL_ENCRYPTION_KEY, GEMINI_API_KEY (tùy chọn)
+    SECRET_KEY, DEBUG, DATABASE_URL, JOURNAL_ENCRYPTION_KEY,
+    COACH_SERVICE_URL, INTERNAL_SERVICE_TOKEN (tùy chọn)
 """
 import os
 import sys
@@ -172,8 +173,9 @@ VAPID_PRIVATE_KEY = os.environ.get("VAPID_PRIVATE_KEY", "")
 VAPID_CLAIMS_EMAIL = os.environ.get("VAPID_CLAIMS_EMAIL", "mailto:admin@example.com")
 
 # ---------------------------------------------------------------- AI coach (Task 5)
-GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY", "")
-GEMINI_MODEL = os.environ.get("GEMINI_MODEL", "gemini-3.8-flash")
+COACH_SERVICE_URL = os.environ.get("COACH_SERVICE_URL", "").rstrip("/")
+INTERNAL_SERVICE_TOKEN = os.environ.get("INTERNAL_SERVICE_TOKEN", "")
+COACH_SERVICE_TIMEOUT = int(os.environ.get("COACH_SERVICE_TIMEOUT", "25"))
 
 # ---------------------------------------------------------------- Bảo mật khi deploy
 if not DEBUG:

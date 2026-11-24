@@ -1,10 +1,12 @@
 from django import forms
 from django.contrib.auth.forms import AuthenticationForm, UserCreationForm
 
+from config.forms import BootstrapFormMixin
+
 from .models import User
 
 
-class RegisterForm(UserCreationForm):
+class RegisterForm(BootstrapFormMixin, UserCreationForm):
     consent_ai = forms.BooleanField(
         required=False,
         label="Cho phép AI coach đọc số liệu (tâm trạng, giấc ngủ, thói quen) để tóm tắt tuần. "
@@ -31,7 +33,7 @@ class RegisterForm(UserCreationForm):
         return user
 
 
-class LoginForm(AuthenticationForm):
+class LoginForm(BootstrapFormMixin, AuthenticationForm):
     username = forms.CharField(label="Tên đăng nhập", widget=forms.TextInput(attrs={"autofocus": True}))
     password = forms.CharField(label="Mật khẩu", strip=False, widget=forms.PasswordInput)
     error_messages = {
