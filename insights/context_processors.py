@@ -16,8 +16,8 @@ def _section(url_name):
         return "notifications"
     if name.startswith("coach"):
         return "coach"
-    if name in ("privacy", "export_data", "delete_data", "delete_account", "sample_data"):
-        return "privacy"
+    if name in ("user_profile", "privacy", "delete_data", "delete_account"):
+        return "user"
     if name == "admin_stats":
         return "admin"
     return ""

@@ -22,48 +22,66 @@
 - **AI coach:** Django chỉ gửi prompt đã loại thông tin định danh và journal sang FastAPI; FastAPI gọi Cloudflare Workers AI bằng REST API. Nếu thiếu cấu hình hoặc provider lỗi, coach dùng bộ luật dự phòng.
 - **Tích hợp tùy chọn:** SMTP và Web Push cho thông báo.
 
-## Chạy local và khởi tạo tài khoản
+## Chạy local trong PyCharm và khởi tạo tài khoản
 
-Yêu cầu: Python 3.12 trở lên.
+Yêu cầu: Python 3.12 trở lên. Trong PyCharm, mở thư mục project và chọn interpreter `.venv` của project.
 
 ```powershell
 python -m venv .venv
 .\.venv\Scripts\Activate.ps1
 pip install -r requirements.txt
 python manage.py migrate
+Copy-Item .env.example .env
+```
 
+Mở `.env` và điền `CLOUDFLARE_ACCOUNT_ID`, `CLOUDFLARE_API_TOKEN` có quyền gọi Workers AI, cùng một giá trị riêng tư cho `INTERNAL_SERVICE_TOKEN`. Khi chạy hai terminal, đặt `COACH_SERVICE_URL=http://127.0.0.1:8001`. Không commit `.env`.
+
+Để bật Web Push trên máy local, chạy lệnh sau một lần:
+
+```powershell
+.\.venv\Scripts\python.exe manage.py generate_vapid_keys
+```
+
+Chép hai dòng `VAPID_PUBLIC_KEY` và `VAPID_PRIVATE_KEY` được in ra vào `.env`, đặt `VAPID_CLAIMS_EMAIL` thành địa chỉ email của bạn rồi khởi động lại ứng dụng. Giữ kín khóa private và giữ nguyên cùng một cặp khóa sau này. Đăng nhập, mở `/notifications/`, bấm **Bật thông báo trên trình duyệt** và cho phép thông báo khi trình duyệt hỏi.
+
+Trên một website public, Web Push yêu cầu HTTPS và người dùng phải cấp quyền lại trên domain public; đăng ký trên `localhost` không dùng chung với domain đó. Cấu hình cả ba biến VAPID trong Environment của service `mam-wellbeing` trên Render trước khi bật push ở website.
+
+Chạy AI coach và website trong hai terminal riêng của PyCharm (cả hai terminal phải ở thư mục gốc project):
+
+Terminal 1 - service AI coach và Cloudflare:
+
+```powershell
+.\.venv\Scripts\python.exe -m uvicorn coach_service.main:app --reload --host 127.0.0.1 --port 8001
+```
+
+Terminal 2 - website Django và API FastAPI:
+
+```powershell
+.\.venv\Scripts\python.exe manage.py migrate
+.\.venv\Scripts\python.exe -m uvicorn config.asgi:application --reload --host 127.0.0.1 --port 8000
+```
+
+Kiểm tra AI service trong terminal thứ hai:
+
+```powershell
+$headers = @{ "X-Internal-Service-Token" = (Get-Content .env | Where-Object { $_ -match '^INTERNAL_SERVICE_TOKEN=' } | Select-Object -First 1).Split('=', 2)[1] }
+$body = @{ prompt = 'Trả về JSON hợp lệ với summary là "Cloudflare đã kết nối".' } | ConvertTo-Json
+Invoke-RestMethod -Uri "http://127.0.0.1:8001/generate" -Method Post -Headers $headers -ContentType "application/json" -Body $body
+```
+
+Endpoint `/health` của service AI báo `provider_configured: true` khi đã nạp được hai biến Cloudflare. Lệnh POST `/generate` phải trả object `result`; nếu lỗi, xem terminal 1 để biết lỗi Cloudflare. Terminal 2 sẽ hiển thị câu trả lời từ Cloudflare hay bộ luật dự phòng. Mở [http://127.0.0.1:8000/accounts/login/](http://127.0.0.1:8000/accounts/login/), API docs ở [http://127.0.0.1:8000/docs](http://127.0.0.1:8000/docs). Sau khi đăng nhập và bật đồng ý AI trong Quyền riêng tư, trang AI coach hỗ trợ hỏi đáp nhiều lượt. Nội dung journal không được gửi cho Cloudflare.
+
+Trên trang `/notifications/`, nhập email và bật lựa chọn nhận email để lưu tùy chọn. Muốn email được gửi thật, thêm các biến SMTP trong `.env` (Gmail cần App Password) rồi khởi động lại ứng dụng; nếu chưa cấu hình SMTP, email chỉ được ghi ra terminal theo mặc định.
+
+Khởi tạo tài khoản nếu cần:
+
+```powershell
 $env:ACCOUNT_USER_PASSWORD = Read-Host "Nhập mật khẩu user"
 $env:ACCOUNT_ADMIN_PASSWORD = Read-Host "Nhập mật khẩu admin"
 python manage.py reset_accounts --confirm
 ```
 
-Để chạy giao diện và các API qua FastAPI + Django ASGI khi không bật AI:
-
-```powershell
-uvicorn config.asgi:application --reload --host 127.0.0.1 --port 8000
-```
-
-Để bật AI coach, chạy service FastAPI riêng ở terminal thứ nhất:
-
-```powershell
-$env:INTERNAL_SERVICE_TOKEN = "chuoi-bi-mat-dung-chung"
-$env:CLOUDFLARE_ACCOUNT_ID = "Cloudflare-Account-ID"
-$env:CLOUDFLARE_API_TOKEN = "Cloudflare-Workers-AI-API-token"
-$env:CLOUDFLARE_AI_MODEL = "@cf/meta/llama-3.1-8b-instruct"
-uvicorn coach_service.main:app --host 127.0.0.1 --port 8001
-```
-
-Trong terminal thứ hai, cấu hình cùng token và URL AI service rồi chạy ứng dụng web/API ASGI:
-
-```powershell
-$env:INTERNAL_SERVICE_TOKEN = "chuoi-bi-mat-dung-chung"
-$env:COACH_SERVICE_URL = "http://127.0.0.1:8001"
-uvicorn config.asgi:application --reload --host 127.0.0.1 --port 8000
-```
-
-Lệnh `reset_accounts --confirm` xóa toàn bộ tài khoản hiện có cùng dữ liệu liên quan, rồi tạo một tài khoản user và một admin. Chỉ chạy khi chủ động muốn làm sạch database. Mật khẩu nhập trong terminal, không lưu vào file hay Git.
-
-Mở [http://127.0.0.1:8000/accounts/login/](http://127.0.0.1:8000/accounts/login/) để đăng nhập. Chạy kiểm thử bằng `python manage.py test`.
+Lệnh `reset_accounts --confirm` xóa toàn bộ tài khoản hiện có cùng dữ liệu liên quan, rồi tạo một tài khoản user và một admin. Chỉ chạy khi chủ động muốn làm sạch database. Mật khẩu nhập trong terminal, không lưu vào file hay Git. Chạy kiểm thử bằng `python manage.py test`.
 
 ## Tổng hợp API
 
@@ -90,7 +108,7 @@ Các endpoint `/api/*` được khai báo và xử lý trong `coach_service/api.
 Project có sẵn [Blueprint cấu hình](render.yaml) và script [build.sh](build.sh). Service Django + FastAPI (`mam-wellbeing`) dùng chung một tiến trình ASGI và cùng Django ORM/database; service FastAPI riêng (`mam-coach`) cung cấp AI coach. Để triển khai:
 
 1. Đẩy mã nguồn lên GitHub.
-2. Mở [Render Blueprint](https://dashboard.render.com/blueprints/new), kết nối repository và xác nhận tạo dịch vụ. Blueprint cấu hình web service ứng dụng, service AI coach, một nhóm biến môi trường có token dùng chung và PostgreSQL.
+2. Mở [Render Blueprint](https://dashboard.render.com/blueprints/new), kết nối repository và xác nhận tạo dịch vụ. Blueprint cấu hình web service ứng dụng, service AI coach, một nhóm biến môi trường có token dùng chung, PostgreSQL và tự deploy mỗi khi có commit mới trên nhánh được liên kết.
 3. Chờ build và migrate hoàn tất. URL dự kiến theo tên service là [https://mam-wellbeing.onrender.com](https://mam-wellbeing.onrender.com); dùng URL thực tế trong Render Dashboard nếu tên này đã được sử dụng hoặc ứng dụng chưa được deploy.
 4. Build chỉ cài dependencies và migrate database; không tự tạo hay xóa tài khoản. Để khởi tạo lại tài khoản trên Render:
    - Trong **Environment**, đặt `ACCOUNT_USER_PASSWORD` và `ACCOUNT_ADMIN_PASSWORD` với các mật khẩu riêng tư.
@@ -100,6 +118,8 @@ Project có sẵn [Blueprint cấu hình](render.yaml) và script [build.sh](bui
    - Đặt `CLOUDFLARE_ACCOUNT_ID` và `CLOUDFLARE_API_TOKEN` trong service `mam-coach`; model mặc định là `@cf/meta/llama-3.1-8b-instruct`. Nếu thiếu credentials hoặc provider lỗi, coach dùng bộ luật dự phòng.
    - `EMAIL_HOST_USER`, `EMAIL_HOST_PASSWORD`, `DEFAULT_FROM_EMAIL`: cấu hình SMTP để gửi email.
    - `VAPID_PUBLIC_KEY`, `VAPID_PRIVATE_KEY`, `VAPID_CLAIMS_EMAIL`: cấu hình Web Push. Có thể tạo khóa bằng `python manage.py generate_vapid_keys`.
+
+Nếu Render không tự deploy sau khi push/merge, mở **Settings** của từng service và kiểm tra **Auto-Deploy = On Commit**. Chọn **Manual Deploy → Deploy a specific commit** có thể tắt auto-deploy; bật lại trong Settings hoặc đồng bộ Blueprint có `autoDeployTrigger: commit`.
 
 `SECRET_KEY`, `JOURNAL_ENCRYPTION_KEY`, `DATABASE_URL` và các thiết lập cơ bản đã được khai báo trong Blueprint. Kiểm tra gói dịch vụ Render hiện hành trước khi triển khai vì chính sách/gói miễn phí có thể thay đổi.
 

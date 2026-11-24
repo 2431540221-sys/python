@@ -1,7 +1,4 @@
-from datetime import timedelta
-
 from django import forms
-from django.utils import timezone
 
 from config.forms import BootstrapFormMixin
 
@@ -15,21 +12,11 @@ class CheckinForm(BootstrapFormMixin, forms.ModelForm):
 
     class Meta:
         model = DailyCheckin
-        fields = ["date", "mood", "sleep_hours", "activity_type", "activity_minutes", "note"]
+        fields = ["mood", "sleep_hours", "activity_type", "activity_minutes", "note"]
         widgets = {
-            "date": forms.DateInput(attrs={"type": "date"}),
             "sleep_hours": forms.NumberInput(attrs={"step": "0.5", "min": 0, "max": 24}),
             "activity_minutes": forms.NumberInput(attrs={"min": 0, "max": 1440}),
         }
-
-    def clean_date(self):
-        day = self.cleaned_data["date"]
-        today = timezone.localdate()
-        if day > today:
-            raise forms.ValidationError("Không thể check-in cho ngày trong tương lai.")
-        if day < today - timedelta(days=365):
-            raise forms.ValidationError("Chỉ nhập bù được trong vòng 1 năm.")
-        return day
 
     def clean(self):
         data = super().clean()

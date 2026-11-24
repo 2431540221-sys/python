@@ -10,8 +10,10 @@ import sys
 from pathlib import Path
 
 from django.core.exceptions import ImproperlyConfigured
+from dotenv import load_dotenv
 
 BASE_DIR = Path(__file__).resolve().parent.parent
+load_dotenv(BASE_DIR / ".env")
 
 
 def env_bool(name, default):
@@ -173,8 +175,14 @@ VAPID_PRIVATE_KEY = os.environ.get("VAPID_PRIVATE_KEY", "")
 VAPID_CLAIMS_EMAIL = os.environ.get("VAPID_CLAIMS_EMAIL", "mailto:admin@example.com")
 
 # ---------------------------------------------------------------- AI coach (Task 5)
-COACH_SERVICE_URL = os.environ.get("COACH_SERVICE_URL", "").rstrip("/")
-INTERNAL_SERVICE_TOKEN = os.environ.get("INTERNAL_SERVICE_TOKEN", "")
+if sys.argv[1:2] == ["test"]:
+    COACH_SERVICE_URL = ""
+    INTERNAL_SERVICE_TOKEN = ""
+else:
+    COACH_SERVICE_URL = os.environ.get(
+        "COACH_SERVICE_URL", "http://127.0.0.1:8000/internal-ai"
+    ).rstrip("/")
+    INTERNAL_SERVICE_TOKEN = os.environ.get("INTERNAL_SERVICE_TOKEN", "")
 COACH_SERVICE_TIMEOUT = int(os.environ.get("COACH_SERVICE_TIMEOUT", "25"))
 
 # ---------------------------------------------------------------- Bảo mật khi deploy

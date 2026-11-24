@@ -1,12 +1,10 @@
-import json
-
 from django.contrib.auth import authenticate
-from django.http import HttpResponse, JsonResponse
+from django.http import JsonResponse
 
 from . import security
 from .apiutils import ApiError, api, form_errors, read_json
 from .forms import RegisterForm
-from .services import admin_statistics, delete_user_data, export_user_data
+from .services import admin_statistics, delete_user_data
 from .tokens import create_access_token, create_refresh_token, user_from_token
 
 
@@ -71,14 +69,6 @@ def me(request):
         raise ApiError(403, "wrong_password", "Cần gửi đúng mật khẩu để xóa tài khoản.")
     request.user.delete()
     return JsonResponse({"deleted": True, "detail": "Tài khoản và toàn bộ dữ liệu đã bị xóa."})
-
-
-@api(methods=("GET",))
-def export_my_data(request):
-    payload = json.dumps(export_user_data(request.user), ensure_ascii=False, indent=2)
-    response = HttpResponse(payload, content_type="application/json; charset=utf-8")
-    response["Content-Disposition"] = 'attachment; filename="du_lieu_cua_toi.json"'
-    return response
 
 
 @api(methods=("DELETE",))

@@ -23,6 +23,7 @@
   <symbol id="i-bell" viewBox="0 0 24 24"><path d="M6 17V11a6 6 0 1112 0v6l1.5 2h-15z"/><path d="M10 21a2 2 0 004 0"/></symbol>
   <symbol id="i-spark" viewBox="0 0 24 24"><path d="M12 3l1.8 5.2L19 10l-5.2 1.8L12 17l-1.8-5.2L5 10l5.2-1.8z"/><path d="M19 16v4M17 18h4"/></symbol>
   <symbol id="i-shield" viewBox="0 0 24 24"><path d="M12 3l8 3v6c0 5-3.5 8-8 9-4.5-1-8-4-8-9V6z"/><path d="M9 12l2 2 4-4"/></symbol>
+  <symbol id="i-user" viewBox="0 0 24 24"><circle cx="12" cy="8" r="4"/><path d="M4 21a8 8 0 0116 0"/></symbol>
   <symbol id="i-bars" viewBox="0 0 24 24"><path d="M5 20V10M12 20V4M19 20v-7"/></symbol>
   <symbol id="i-out" viewBox="0 0 24 24"><path d="M9 4H5v16h4"/><path d="M16 8l4 4-4 4M20 12H9"/></symbol>
   <symbol id="i-lock" viewBox="0 0 24 24"><rect x="5" y="11" width="14" height="9" rx="2"/><path d="M8 11V8a4 4 0 018 0v3"/></symbol>
@@ -39,7 +40,7 @@
     <a class="navlink {% if nav == 'notifications' %}active{% endif %}" href="{% url 'notifications' %}" {% if nav == 'notifications' %}aria-current="page"{% endif %}><svg class="icon"><use href="#i-bell"/></svg>Thông báo{% if unread_count %}<span class="navbadge">{{ unread_count }}</span>{% endif %}</a>
     <a class="navlink {% if nav == 'coach' %}active{% endif %}" href="{% url 'coach' %}" {% if nav == 'coach' %}aria-current="page"{% endif %}><svg class="icon"><use href="#i-spark"/></svg>AI coach</a>
     <div class="navsep"></div>
-    <a class="navlink {% if nav == 'privacy' %}active{% endif %}" href="{% url 'privacy' %}" {% if nav == 'privacy' %}aria-current="page"{% endif %}><svg class="icon"><use href="#i-shield"/></svg>Quyền riêng tư</a>
+    <a class="navlink {% if nav == 'user' %}active{% endif %}" href="{% url 'user_profile' %}" {% if nav == 'user' %}aria-current="page"{% endif %}><svg class="icon"><use href="#i-user"/></svg>Tài khoản</a>
     {% if user.is_admin_role %}
     <a class="navlink {% if nav == 'admin' %}active{% endif %}" href="{% url 'admin_stats' %}" {% if nav == 'admin' %}aria-current="page"{% endif %}><svg class="icon"><use href="#i-bars"/></svg>Thống kê ẩn danh</a>
     {% endif %}

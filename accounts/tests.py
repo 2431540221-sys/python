@@ -150,10 +150,63 @@ class WebAuthTests(TestCase):
         self.assertTrue(User.objects.filter(username="new-user").exists())
 
     def test_pages_require_login(self):
-        for name in ("dashboard", "habit_list", "checkin", "journal_list", "coach", "privacy", "notifications"):
+        for name in ("dashboard", "habit_list", "checkin", "journal_list", "coach", "user_profile", "notifications"):
             r = self.client.get(reverse(name))
             self.assertEqual(r.status_code, 302, name)
             self.assertIn("/accounts/login/", r["Location"])
+
+    def test_profile_saves_personal_information_to_database(self):
+        self.client.force_login(self.user)
+        response = self.client.post(reverse("user_profile"), {
+            "section": "personal",
+            "username": "updated-user",
+            "first_name": "Lan",
+            "last_name": "Nguyen",
+            "email": "lan@example.com",
+        })
+
+        self.assertRedirects(response, reverse("user_profile"))
+        self.user.refresh_from_db()
+        self.assertEqual(
+            (self.user.username, self.user.first_name, self.user.last_name, self.user.email),
+            ("updated-user", "Lan", "Nguyen", "lan@example.com"),
+        )
+
+    def test_profile_saves_ai_and_email_preferences(self):
+        self.client.force_login(self.user)
+        self.user.email = "lan@example.com"
+        self.user.save(update_fields=["email"])
+
+        response = self.client.post(reverse("user_profile"), {
+            "section": "preferences",
+            "consent_ai": "on",
+            "email_notifications_enabled": "on",
+        })
+
+        self.assertRedirects(response, reverse("user_profile"))
+        self.user.refresh_from_db()
+        self.assertTrue(self.user.consent_ai)
+        self.assertTrue(self.user.email_notifications_enabled)
+
+    def test_profile_cannot_enable_email_notifications_without_email(self):
+        self.client.force_login(self.user)
+        response = self.client.post(reverse("user_profile"), {
+            "section": "preferences",
+            "email_notifications_enabled": "on",
+        })
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "Hãy thêm email trong mục Thông tin cá nhân")
+        self.user.refresh_from_db()
+        self.assertFalse(self.user.email_notifications_enabled)
+
+    def test_old_privacy_page_redirects_to_account(self):
+        response = self.client.get(reverse("privacy"))
+        self.assertRedirects(response, reverse("user_profile"), fetch_redirect_response=False)
+
+    def test_sample_data_endpoint_is_removed(self):
+        self.client.force_login(self.user)
+        self.assertEqual(self.client.post("/privacy/sample-data/").status_code, 404)
 
     def test_cookie_cannot_write_through_api(self):
         """Cookie chỉ đọc được API bằng GET; ghi dữ liệu qua API bắt buộc Bearer (chống CSRF)."""
@@ -241,20 +294,6 @@ class PrivacyIsolationTests(TestCase):
         self.assertEqual(r.status_code, 200)
         self.assertNotContains(r, "userb")
 
-    def test_export_my_data(self):
-        DailyWellbeingIndex.objects.create(user=self.b, score=75, mood_score=80)
-        BrowserPushSubscription.objects.create(
-            user=self.b, endpoint="https://fcm.googleapis.com/fcm/send/export",
-            p256dh="public-key", auth="auth-secret",
-        )
-        r = self.client.get("/api/me/export/", **bearer(self.b))
-        data = json.loads(r.content)
-        self.assertEqual(data["journals"][0]["content"], "Bí mật rất riêng của B")
-        self.assertEqual(data["habits"][0]["name"], "Habit của B")
-        self.assertEqual(data["wellbeing_indices"][0]["score"], 75)
-        self.assertIn("fcm.googleapis.com", data["push_subscriptions"][0]["endpoint"])
-        self.assertIn("attachment", r["Content-Disposition"])
-
     def test_delete_my_data_keeps_account(self):
         DailyWellbeingIndex.objects.create(user=self.b, score=75)
         BrowserPushSubscription.objects.create(
@@ -297,21 +336,21 @@ class SmokeTests(TestCase):
             reverse("habit_delete", args=[habit.pk]), reverse("checkin"), reverse("history"),
             reverse("journal_list"), reverse("journal_create"), reverse("journal_detail", args=[entry.pk]),
             reverse("journal_update", args=[entry.pk]), reverse("journal_delete", args=[entry.pk]),
-            reverse("notifications"), reverse("coach"), reverse("privacy"), reverse("export_data"),
+            reverse("notifications"), reverse("coach"), reverse("user_profile"),
         ]
         for url in pages:
             self.assertEqual(self.client.get(url).status_code, 200, url)
         self.assertEqual(self.client.get("/khong-ton-tai/").status_code, 404)
 
-    def test_sample_data_button_and_delete_flow(self):
+    def test_delete_data_flow_uses_database_records(self):
         user = User.objects.create_user("smoke2", password="Matkhau!2026x")
+        Habit.objects.create(user=user, name="Thói quen thật")
         self.client.post(reverse("login"), {"username": "smoke2", "password": "Matkhau!2026x"})
-        self.client.post(reverse("sample_data"))
-        self.assertEqual(user.checkins.count(), 30)
         self.client.post(reverse("delete_data"))                       # chưa tick xác nhận -> không xóa
-        self.assertEqual(user.checkins.count(), 30)
+        self.assertEqual(user.habits.count(), 1)
         self.client.post(reverse("delete_data"), {"confirm": "yes"})
-        self.assertEqual(user.checkins.count(), 0)
+        self.assertEqual(user.habits.count(), 0)
+        self.assertTrue(User.objects.filter(pk=user.pk).exists())
         self.client.post(reverse("delete_account"), {"password": "sai"})
         self.assertTrue(User.objects.filter(pk=user.pk).exists())
         self.client.post(reverse("delete_account"), {"password": "Matkhau!2026x"})

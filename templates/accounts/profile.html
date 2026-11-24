@@ -1,0 +1,67 @@
+{% extends "base.html" %}
+{% block title %}Tài khoản{% endblock %}
+{% block content %}
+<div class="page-head">
+  <div><h1>Tài khoản</h1><p>Quản lý thông tin cá nhân, quyền sử dụng dữ liệu và tài khoản của bạn.</p></div>
+</div>
+<nav class="btn-row" aria-label="Các mục cài đặt tài khoản" style="margin-bottom:20px">
+  <a class="btn small ghost" href="#personal-info">Thông tin cá nhân</a>
+  <a class="btn small ghost" href="#permissions">Tùy chỉnh quyền</a>
+  <a class="btn small ghost" href="#data-management">Dữ liệu và tài khoản</a>
+</nav>
+
+<section class="panel" id="personal-info">
+  <h2>Thông tin cá nhân</h2>
+  <form method="post">
+    {% csrf_token %}
+    <input type="hidden" name="section" value="personal">
+    {% if profile_form.non_field_errors %}<div class="errorbox">{{ profile_form.non_field_errors }}</div>{% endif %}
+    {% for field in profile_form %}
+      <div class="field form-narrow">
+        {{ field.label_tag }}
+        {{ field }}
+        {% for error in field.errors %}<p class="error">{{ error }}</p>{% endfor %}
+      </div>
+    {% endfor %}
+    <button class="btn" type="submit">Lưu thông tin</button>
+  </form>
+</section>
+
+<section class="panel" id="permissions">
+  <h2>Tùy chỉnh quyền</h2>
+  <p class="small muted">Bạn có thể thay đổi các lựa chọn này bất cứ lúc nào. Nội dung journal không được gửi cho AI Coach.</p>
+  <form method="post">
+    {% csrf_token %}
+    <input type="hidden" name="section" value="preferences">
+    <label class="check">
+      {{ preferences_form.consent_ai }}
+      <span>{{ preferences_form.consent_ai.label }}</span>
+    </label>
+    {% for error in preferences_form.consent_ai.errors %}<p class="error">{{ error }}</p>{% endfor %}
+    <label class="check" style="margin-top:16px">
+      {{ preferences_form.email_notifications_enabled }}
+      <span>{{ preferences_form.email_notifications_enabled.label }}</span>
+    </label>
+    {% for error in preferences_form.email_notifications_enabled.errors %}<p class="error">{{ error }}</p>{% endfor %}
+    <p class="small muted" style="margin-top:10px">Email nhận thông báo: {{ user.email|default:"Chưa thêm email" }}. Hãy cập nhật email trong mục Thông tin cá nhân. Gửi email thật cần máy chủ được cấu hình SMTP.</p>
+    <button class="btn" type="submit">Lưu tùy chỉnh quyền</button>
+  </form>
+</section>
+
+<section class="panel" id="data-management">
+  <h2>Dữ liệu và tài khoản</h2>
+  <form method="post" action="{% url 'delete_data' %}" data-confirm="Xóa toàn bộ dữ liệu cá nhân? Việc này không hoàn tác được.">
+    {% csrf_token %}
+    <p>Xóa thói quen, check-in, journal, thông báo, báo cáo AI, chỉ số wellbeing và đăng ký push. Tài khoản vẫn được giữ.</p>
+    <label class="check"><input type="checkbox" name="confirm" value="yes"><span>Tôi hiểu dữ liệu sẽ bị xóa vĩnh viễn.</span></label>
+    <p style="margin-top:14px"><button class="btn danger" type="submit">Xóa dữ liệu của tôi</button></p>
+  </form>
+  <hr style="border:0;border-top:1px solid var(--line);margin:22px 0">
+  <form method="post" action="{% url 'delete_account' %}" data-confirm="Xóa tài khoản và toàn bộ dữ liệu? Việc này không hoàn tác được.">
+    {% csrf_token %}
+    <p>Xóa hẳn tài khoản cùng toàn bộ dữ liệu. Nhập mật khẩu để xác nhận.</p>
+    <div class="field form-narrow"><label for="pw">Mật khẩu</label><input id="pw" type="password" name="password" autocomplete="current-password" required></div>
+    <button class="btn danger" type="submit">Xóa tài khoản</button>
+  </form>
+</section>
+{% endblock %}

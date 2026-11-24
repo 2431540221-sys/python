@@ -1,5 +1,8 @@
+from datetime import date
+
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
+from django.db import IntegrityError, transaction
 from django.shortcuts import get_object_or_404, redirect, render
 from django.utils import timezone
 from django.views.decorators.http import require_POST
@@ -10,36 +13,57 @@ from .models import DailyCheckin, JournalEntry
 
 @login_required
 def checkin(request):
-    """Form check-in: mood 1-5, giờ ngủ, hoạt động. Check-in lại cùng ngày thì cập nhật."""
+    """Cho phép tạo tối đa một check-in trong ngày hiện tại."""
     today = timezone.localdate()
     existing = DailyCheckin.objects.filter(user=request.user, date=today).first()
     if request.method == "POST":
-        try:
-            target = DailyCheckin.objects.filter(user=request.user, date=request.POST.get("date")).first()
-        except Exception:      # ngày gửi lên sai định dạng: để form tự báo lỗi
-            target = None
-        form = CheckinForm(request.POST, instance=target)
+        raw_date = request.POST.get("date")
+        if raw_date:
+            try:
+                submitted_date = date.fromisoformat(raw_date)
+            except ValueError:
+                messages.error(request, "Ngày check-in không hợp lệ.")
+                return redirect("checkin")
+            if submitted_date != today:
+                messages.error(request, "Chỉ được check-in cho ngày hôm nay.")
+                return redirect("checkin")
+        if existing:
+            messages.info(request, "Bạn đã check-in hôm nay rồi.")
+            return redirect("history")
+
+        form = CheckinForm(request.POST)
         if form.is_valid():
             entry = form.save(commit=False)
             entry.user = request.user
-            entry.save()
+            entry.date = today
+            try:
+                with transaction.atomic():
+                    entry.save()
+            except IntegrityError:
+                messages.info(request, "Bạn đã check-in hôm nay rồi.")
+                return redirect("history")
             messages.success(request, f"Đã lưu check-in ngày {entry.date:%d/%m/%Y}.")
             return redirect("history")
     else:
-        form = CheckinForm(instance=existing, initial={"date": today})
+        form = CheckinForm()
     return render(request, "tracking/checkin.html", {"form": form, "existing": existing, "today": today})
 
 
 @login_required
 def history(request):
-    entries = DailyCheckin.objects.filter(user=request.user)[:60]
-    return render(request, "tracking/history.html", {"entries": entries})
+    today = timezone.localdate()
+    entries = DailyCheckin.objects.filter(user=request.user, date__lte=today)[:60]
+    return render(request, "tracking/history.html", {"entries": entries, "today": today})
 
 
 @login_required
 @require_POST
 def checkin_delete(request, pk):
-    get_object_or_404(DailyCheckin, pk=pk, user=request.user).delete()
+    entry = get_object_or_404(DailyCheckin, pk=pk, user=request.user)
+    if entry.date == timezone.localdate():
+        messages.error(request, "Không thể xóa check-in hôm nay để tạo lại lần nữa.")
+        return redirect("history")
+    entry.delete()
     messages.success(request, "Đã xóa check-in.")
     return redirect("history")
 

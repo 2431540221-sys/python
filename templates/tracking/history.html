@@ -14,7 +14,7 @@
         <td>{{ c.sleep_hours|floatformat:"-1" }} giờ</td>
         <td>{% if c.activity_type == "none" %}<span class="muted">–</span>{% else %}{{ c.get_activity_type_display }}, {{ c.activity_minutes }} phút{% endif %}</td>
         <td>{{ c.note|default:"" }}</td>
-        <td><form method="post" action="{% url 'checkin_delete' c.pk %}" data-confirm="Xóa check-in này?">{% csrf_token %}<button class="btn ghost small" type="submit">Xóa</button></form></td>
+        <td>{% if c.date == today %}<span class="muted small">Hôm nay</span>{% else %}<form method="post" action="{% url 'checkin_delete' c.pk %}" data-confirm="Xóa check-in này?">{% csrf_token %}<button class="btn ghost small" type="submit">Xóa</button></form>{% endif %}</td>
       </tr>
     {% endfor %}
     </tbody>

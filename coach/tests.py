@@ -15,7 +15,13 @@ from accounts.tokens import create_access_token
 from coach import safety
 from coach.llm import call_llm_json
 from coach.service import ConsentRequired, build_week_data, generate_report
-from coach_service.main import GenerateRequest, generate, verify_internal_token
+from coach_service.main import (
+    app as coach_app,
+    GenerateRequest,
+    generate,
+    parse_provider_response,
+    verify_internal_token,
+)
 from tracking.models import JournalEntry
 
 
@@ -75,7 +81,8 @@ class CoachReportTests(TestCase):
     def test_weekly_summary_has_disclaimer(self):
         """Demo thầy yêu cầu: AI trả bản tóm tắt tuần có disclaimer."""
         self.user.email = "coach@example.com"
-        self.user.save(update_fields=["email"])
+        self.user.email_notifications_enabled = True
+        self.user.save(update_fields=["email", "email_notifications_enabled"])
         r = self.client.post("/api/coach/weekly/", **bearer(self.user))
         self.assertEqual(r.status_code, 201)
         data = r.json()
@@ -164,6 +171,49 @@ class CoachReportTests(TestCase):
         self.assertEqual(payload["messages"][0]["content"].splitlines()[0], "anonymous weekly metrics")
         self.assertEqual(payload["temperature"], 0.4)
 
+    def test_cloudflare_response_parser_accepts_json_string_and_code_fence(self):
+        payload = {
+            "success": True,
+            "result": {"response": 'Here is the result:\n```json\n{"summary":"A small step"}\n```'},
+        }
+        self.assertEqual(
+            parse_provider_response(payload),
+            {"summary": "A small step"},
+        )
+
+    def test_cloudflare_response_parser_rejects_failed_provider_response(self):
+        with self.assertRaises(ValueError):
+            parse_provider_response({"success": False, "errors": ["request failed"]})
+
+    def test_cloudflare_generate_endpoint_returns_structured_response(self):
+        response = mock.MagicMock()
+        response.read.return_value = (
+            b'{"success":true,"result":{"response":{"summary":"A small step"}}}'
+        )
+        http_response = mock.MagicMock()
+        http_response.__enter__.return_value = response
+        with mock.patch.dict("os.environ", {
+            "INTERNAL_SERVICE_TOKEN": "internal-test-token",
+            "CLOUDFLARE_ACCOUNT_ID": "account-id",
+            "CLOUDFLARE_API_TOKEN": "test-token",
+        }):
+            with mock.patch(
+                "coach_service.main.urllib.request.urlopen",
+                return_value=http_response,
+            ):
+                with TestClient(coach_app) as client:
+                    health = client.get("/health")
+                    result = client.post(
+                        "/generate",
+                        headers={"X-Internal-Service-Token": "internal-test-token"},
+                        json={"prompt": "anonymous metrics"},
+                    )
+
+        self.assertEqual(health.status_code, 200)
+        self.assertTrue(health.json()["provider_configured"])
+        self.assertEqual(result.status_code, 200)
+        self.assertEqual(result.json(), {"result": {"summary": "A small step"}})
+
     def test_sensitive_question_never_reaches_llm(self):
         self.client.post(reverse("login"), {"username": "coachuser", "password": "Matkhau!2026x"})
         with mock.patch("coach.service.llm.call_llm_json") as llm:
@@ -179,6 +229,37 @@ class CoachReportTests(TestCase):
             r = self.client.get(reverse("coach"))
             llm.assert_not_called()
         self.assertContains(r, "đang an toàn")
+
+    def test_chat_keeps_safe_context_between_questions(self):
+        self.client.post(reverse("login"), {"username": "coachuser", "password": "Matkhau!2026x"})
+        answers = [
+            {"summary": "Bắt đầu bằng một bước nhỏ.", "actions": [], "goals": []},
+            {"summary": "Gắn việc đó với lịch buổi tối.", "actions": [], "goals": []},
+        ]
+        with mock.patch("coach.service.llm.call_llm_json", side_effect=answers) as llm:
+            self.client.post(reverse("coach_ask"), {"question": "Mình hay trì hoãn việc tập thể dục"})
+            self.client.post(reverse("coach_ask"), {"question": "Mình nên làm vào lúc nào?"})
+
+        second_prompt = llm.call_args_list[1].args[0]
+        self.assertIn("Mình hay trì hoãn việc tập thể dục", second_prompt)
+        self.assertIn("Bắt đầu bằng một bước nhỏ.", second_prompt)
+        page = self.client.get(reverse("coach"))
+        self.assertContains(page, "Bắt đầu bằng một bước nhỏ.")
+        self.assertContains(page, "Gắn việc đó với lịch buổi tối.")
+        self.assertContains(page, "Trả lời từ Cloudflare Workers AI")
+
+        self.client.post(reverse("coach_clear_chat"))
+        self.assertNotContains(self.client.get(reverse("coach")), "Bắt đầu bằng một bước nhỏ.")
+
+    def test_chat_labels_rule_based_fallback_when_ai_service_is_unavailable(self):
+        self.client.post(reverse("login"), {"username": "coachuser", "password": "Matkhau!2026x"})
+        with mock.patch("coach.service.llm.call_llm_json", return_value=None):
+            self.client.post(reverse("coach_ask"), {"question": "Mình hay trì hoãn việc tập thể dục"})
+
+        self.assertContains(
+            self.client.get(reverse("coach")),
+            "Trả lời dự phòng (bộ luật cục bộ)",
+        )
 
     def test_no_data_week_gives_gentle_message(self):
         newbie = User.objects.create_user("newbie", password="Matkhau!2026x", consent_ai=True)
@@ -219,6 +300,10 @@ class FastApiRoutingTests(TransactionTestCase):
                     "note": "",
                 },
             )
+            export_response = fastapi_client.get(
+                "/api/me/export/",
+                headers={"Authorization": f"Bearer {token}"},
+            )
 
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.json()["username"], user.username)
@@ -226,3 +311,35 @@ class FastApiRoutingTests(TransactionTestCase):
         self.assertEqual(habits_response.json(), {"habits": []})
         self.assertEqual(checkin_response.status_code, 201)
         self.assertEqual(checkin_response.json()["mood"], 4)
+        self.assertEqual(export_response.status_code, 404)
+
+    def test_integrated_fastapi_app_exposes_protected_cloudflare_endpoint(self):
+        from config.asgi import application
+
+        response = mock.MagicMock()
+        response.read.return_value = b'{"success":true,"result":{"response":{"summary":"A small step"}}}'
+        http_response = mock.MagicMock()
+        http_response.__enter__.return_value = response
+        with mock.patch.dict("os.environ", {
+            "INTERNAL_SERVICE_TOKEN": "internal-test-token",
+            "CLOUDFLARE_ACCOUNT_ID": "account-id",
+            "CLOUDFLARE_API_TOKEN": "test-token",
+        }):
+            with mock.patch(
+                "coach_service.main.urllib.request.urlopen",
+                return_value=http_response,
+            ):
+                with TestClient(application) as fastapi_client:
+                    unauthorized = fastapi_client.post(
+                        "/internal-ai/generate",
+                        json={"prompt": "anonymous metrics"},
+                    )
+                    result = fastapi_client.post(
+                        "/internal-ai/generate",
+                        headers={"X-Internal-Service-Token": "internal-test-token"},
+                        json={"prompt": "anonymous metrics"},
+                    )
+
+        self.assertEqual(unauthorized.status_code, 401)
+        self.assertEqual(result.status_code, 200)
+        self.assertEqual(result.json(), {"result": {"summary": "A small step"}})

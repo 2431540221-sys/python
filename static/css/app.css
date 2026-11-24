@@ -133,11 +133,21 @@ input[type=checkbox] { width: 20px; height: 20px; accent-color: var(--jade); fle
 .dots span.today { outline: 2px solid var(--sun); outline-offset: 1px; }
 .progress { height: 8px; background: var(--mist); border-radius: 999px; overflow: hidden; border: 1px solid var(--line); }
 .progress > i { display: block; height: 100%; background: var(--jade); }
-.calendar { display: grid; grid-template-columns: repeat(7, 1fr); gap: 6px; max-width: 420px; }
-.calendar button { font: 500 .8rem var(--font); aspect-ratio: 1; border-radius: 8px; border: 1.5px solid var(--line); background: var(--paper); color: var(--ink-soft); cursor: pointer; width: 100%; }
-.calendar button.done { background: var(--jade); border-color: var(--jade); color: #fff; font-weight: 700; }
-.calendar button.today { outline: 2px solid var(--sun); outline-offset: 1px; }
-.calendar .dow { font-size: .75rem; text-align: center; color: var(--ink-soft); }
+.calendar-layout { display: grid; grid-template-columns: minmax(0, 1.5fr) minmax(220px, .8fr); gap: 28px; align-items: start; }
+.calendar { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 7px; max-width: 560px; }
+.calendar .calendar-day { display: grid; place-items: center; min-height: 42px; aspect-ratio: 1; border-radius: 8px; border: 1.5px solid var(--line); background: var(--paper); color: var(--ink-soft); font-size: .9rem; }
+.calendar .calendar-day.done { background: var(--jade); border-color: var(--jade); color: #fff; font-weight: 700; }
+.calendar .calendar-day.today { outline: 2px solid var(--sun); outline-offset: 1px; }
+.calendar .calendar-day.blank { background: transparent; border-color: transparent; }
+.calendar .dow { padding: 4px 0; font-size: .75rem; text-align: center; color: var(--ink-soft); }
+.calendar-sidebar { padding: 18px; border-radius: 12px; background: var(--mist); }
+.calendar-sidebar h3 { margin-top: 0; }
+.calendar-picker { display: grid; gap: 8px; }
+.calendar-picker label { font-size: .9rem; font-weight: 600; }
+.calendar-picker input, .calendar-picker select { width: 100%; }
+.calendar-picker .btn { margin-top: 6px; }
+.today-check { border-top: 1px solid var(--line); margin-top: 20px; padding-top: 16px; }
+.today-check p { font-size: .9rem; color: var(--ink-soft); }
 .detail-stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 0; border-top: 1px solid var(--line); border-bottom: 1px solid var(--line); margin: 16px 0 24px; }
 .detail-stats > div { padding: 14px 16px; border-left: 1px solid var(--line); }
 .detail-stats > div:first-child { border-left: 0; }
@@ -179,6 +189,12 @@ table.table { width: 100%; border-collapse: collapse; }
 .notice.unread .dot { background: var(--sun); }
 .notice.unread strong { font-weight: 700; }
 .notice time { font-size: .8rem; color: var(--ink-soft); white-space: nowrap; }
+.notice-form { border-top: 1px solid var(--line); }
+.notice-form:first-child { border-top: 0; }
+.notice-button { width: 100%; border: 0; background: transparent; color: inherit; font: inherit; text-align: left; cursor: pointer; }
+.notice-button:hover { background: var(--mist); }
+.notice-button:focus-visible { outline: 3px solid var(--sun); outline-offset: 2px; }
+.notice-content { display: grid; gap: 4px; }
 
 /* ---------- AI coach ---------- */
 .report h3 { margin-top: 18px; }
@@ -215,6 +231,7 @@ table.table { width: 100%; border-collapse: collapse; }
   .strip > div:nth-child(3) { border-left: 0; }
   .strip > div:nth-child(n+3) { border-top: 1px solid var(--line); }
   .grid2, .two { grid-template-columns: 1fr; }
+  .calendar-layout { grid-template-columns: 1fr; }
   .habit { grid-template-columns: 1fr; }
   h1 { font-size: 1.6rem; }
 }
