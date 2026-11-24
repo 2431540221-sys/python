@@ -17,6 +17,40 @@ class GenerateRequest(BaseModel):
     prompt: str = Field(min_length=1, max_length=12000)
 
 
+def parse_provider_response(provider_payload):
+    if not isinstance(provider_payload, dict) or provider_payload.get("success") is False:
+        raise ValueError("Cloudflare did not return a successful response")
+
+    result_payload = provider_payload.get("result")
+    if not isinstance(result_payload, dict):
+        raise ValueError("Cloudflare response is missing its result object")
+
+    generated = result_payload.get("response")
+    if isinstance(generated, dict):
+        result = generated
+    elif isinstance(generated, str):
+        decoder = json.JSONDecoder()
+        result = None
+        for index, character in enumerate(generated):
+            if character != "{":
+                continue
+            try:
+                candidate, _ = decoder.raw_decode(generated[index:])
+            except json.JSONDecodeError:
+                continue
+            if isinstance(candidate, dict):
+                result = candidate
+                break
+        if result is None:
+            raise ValueError("The model response did not contain a JSON object")
+    else:
+        raise ValueError("The model response must be a JSON object or JSON string")
+
+    if not isinstance(result, dict):
+        raise ValueError("The model response must be a JSON object")
+    return result
+
+
 def verify_internal_token(x_internal_service_token: str = Header(default="")):
     expected = os.environ.get("INTERNAL_SERVICE_TOKEN", "")
     if not expected or not secrets.compare_digest(x_internal_service_token, expected):
@@ -66,15 +100,7 @@ def generate(request: GenerateRequest):
     try:
         with urllib.request.urlopen(outbound, timeout=20) as response:
             provider_payload = json.loads(response.read().decode("utf-8"))
-        generated_text = provider_payload["result"]["response"]
-        if isinstance(generated_text, dict):
-            result = generated_text
-        elif isinstance(generated_text, str):
-            result = json.loads(generated_text)
-        else:
-            raise ValueError("The model response must be a JSON object or JSON string")
-        if not isinstance(result, dict):
-            raise ValueError("The model response must be a JSON object")
+        result = parse_provider_response(provider_payload)
         return {"result": result}
     except urllib.error.HTTPError as exc:
         logger.error("Cloudflare Workers AI request failed with HTTP %s.", exc.code)
@@ -82,7 +108,7 @@ def generate(request: GenerateRequest):
     except (urllib.error.URLError, TimeoutError):
         logger.exception("Could not reach Cloudflare Workers AI.")
         raise HTTPException(status_code=502, detail="AI provider request failed")
-    except (ValueError, TypeError, KeyError, json.JSONDecodeError):
+    except (ValueError, TypeError):
         logger.warning("Cloudflare Workers AI returned an invalid response.", exc_info=True)
         raise HTTPException(status_code=502, detail="AI provider returned an invalid response")
     except Exception:

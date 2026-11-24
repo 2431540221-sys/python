@@ -11,6 +11,7 @@ services:
     name: mam-wellbeing
     runtime: python
     plan: free
+    autoDeployTrigger: commit
     buildCommand: "./build.sh"
     startCommand: "uvicorn config.asgi:application --host 0.0.0.0 --port $PORT --workers 2"
     healthCheckPath: /accounts/login/
@@ -63,6 +64,7 @@ services:
     name: mam-coach
     runtime: python
     plan: free
+    autoDeployTrigger: commit
     buildCommand: "pip install -r requirements-prod.txt"
     startCommand: "uvicorn coach_service.main:app --host 0.0.0.0 --port $PORT"
     healthCheckPath: /health
