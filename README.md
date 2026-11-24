@@ -90,7 +90,7 @@ Các endpoint `/api/*` được khai báo và xử lý trong `coach_service/api.
 Project có sẵn [Blueprint cấu hình](render.yaml) và script [build.sh](build.sh). Service Django + FastAPI (`mam-wellbeing`) dùng chung một tiến trình ASGI và cùng Django ORM/database; service FastAPI riêng (`mam-coach`) cung cấp AI coach. Để triển khai:
 
 1. Đẩy mã nguồn lên GitHub.
-2. Mở [Render Blueprint](https://dashboard.render.com/blueprints/new), kết nối repository và xác nhận tạo dịch vụ. Blueprint cấu hình web service ứng dụng, service AI coach, một nhóm biến môi trường có token dùng chung và PostgreSQL.
+2. Mở [Render Blueprint](https://dashboard.render.com/blueprints/new), kết nối repository và xác nhận tạo dịch vụ. Blueprint cấu hình web service ứng dụng, service AI coach, một nhóm biến môi trường có token dùng chung, PostgreSQL và tự deploy mỗi khi có commit mới trên nhánh được liên kết.
 3. Chờ build và migrate hoàn tất. URL dự kiến theo tên service là [https://mam-wellbeing.onrender.com](https://mam-wellbeing.onrender.com); dùng URL thực tế trong Render Dashboard nếu tên này đã được sử dụng hoặc ứng dụng chưa được deploy.
 4. Build chỉ cài dependencies và migrate database; không tự tạo hay xóa tài khoản. Để khởi tạo lại tài khoản trên Render:
    - Trong **Environment**, đặt `ACCOUNT_USER_PASSWORD` và `ACCOUNT_ADMIN_PASSWORD` với các mật khẩu riêng tư.
@@ -100,6 +100,8 @@ Project có sẵn [Blueprint cấu hình](render.yaml) và script [build.sh](bui
    - Đặt `CLOUDFLARE_ACCOUNT_ID` và `CLOUDFLARE_API_TOKEN` trong service `mam-coach`; model mặc định là `@cf/meta/llama-3.1-8b-instruct`. Nếu thiếu credentials hoặc provider lỗi, coach dùng bộ luật dự phòng.
    - `EMAIL_HOST_USER`, `EMAIL_HOST_PASSWORD`, `DEFAULT_FROM_EMAIL`: cấu hình SMTP để gửi email.
    - `VAPID_PUBLIC_KEY`, `VAPID_PRIVATE_KEY`, `VAPID_CLAIMS_EMAIL`: cấu hình Web Push. Có thể tạo khóa bằng `python manage.py generate_vapid_keys`.
+
+Nếu Render không tự deploy sau khi push/merge, mở **Settings** của từng service và kiểm tra **Auto-Deploy = On Commit**. Chọn **Manual Deploy → Deploy a specific commit** có thể tắt auto-deploy; bật lại trong Settings hoặc đồng bộ Blueprint có `autoDeployTrigger: commit`.
 
 `SECRET_KEY`, `JOURNAL_ENCRYPTION_KEY`, `DATABASE_URL` và các thiết lập cơ bản đã được khai báo trong Blueprint. Kiểm tra gói dịch vụ Render hiện hành trước khi triển khai vì chính sách/gói miễn phí có thể thay đổi.
 

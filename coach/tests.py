@@ -15,7 +15,13 @@ from accounts.tokens import create_access_token
 from coach import safety
 from coach.llm import call_llm_json
 from coach.service import ConsentRequired, build_week_data, generate_report
-from coach_service.main import GenerateRequest, generate, verify_internal_token
+from coach_service.main import (
+    app as coach_app,
+    GenerateRequest,
+    generate,
+    parse_provider_response,
+    verify_internal_token,
+)
 from tracking.models import JournalEntry
 
 
@@ -163,6 +169,46 @@ class CoachReportTests(TestCase):
         payload = json.loads(outbound.data)
         self.assertEqual(payload["messages"][0]["content"].splitlines()[0], "anonymous weekly metrics")
         self.assertEqual(payload["temperature"], 0.4)
+
+    def test_cloudflare_response_parser_accepts_json_string_and_code_fence(self):
+        payload = {
+            "success": True,
+            "result": {"response": 'Here is the result:\n```json\n{"summary":"A small step"}\n```'},
+        }
+        self.assertEqual(
+            parse_provider_response(payload),
+            {"summary": "A small step"},
+        )
+
+    def test_cloudflare_response_parser_rejects_failed_provider_response(self):
+        with self.assertRaises(ValueError):
+            parse_provider_response({"success": False, "errors": ["request failed"]})
+
+    def test_cloudflare_generate_endpoint_returns_structured_response(self):
+        response = mock.MagicMock()
+        response.read.return_value = (
+            b'{"success":true,"result":{"response":{"summary":"A small step"}}}'
+        )
+        http_response = mock.MagicMock()
+        http_response.__enter__.return_value = response
+        with mock.patch.dict("os.environ", {
+            "INTERNAL_SERVICE_TOKEN": "internal-test-token",
+            "CLOUDFLARE_ACCOUNT_ID": "account-id",
+            "CLOUDFLARE_API_TOKEN": "test-token",
+        }):
+            with mock.patch(
+                "coach_service.main.urllib.request.urlopen",
+                return_value=http_response,
+            ):
+                with TestClient(coach_app) as client:
+                    result = client.post(
+                        "/generate",
+                        headers={"X-Internal-Service-Token": "internal-test-token"},
+                        json={"prompt": "anonymous metrics"},
+                    )
+
+        self.assertEqual(result.status_code, 200)
+        self.assertEqual(result.json(), {"result": {"summary": "A small step"}})
 
     def test_sensitive_question_never_reaches_llm(self):
         self.client.post(reverse("login"), {"username": "coachuser", "password": "Matkhau!2026x"})
