@@ -52,6 +52,7 @@ INSTALLED_APPS = [
     "tracking",   # Task 3: check-in tâm trạng/giấc ngủ/hoạt động và journal riêng tư
     "insights",   # Task 4: dashboard xu hướng, thông báo
     "coach",      # Task 5: AI coach nhẹ
+    "dbsync.apps.DbSyncConfig",
 ]
 # Lưu ý: cố ý KHÔNG bật django.contrib.admin để quản trị viên không thể mở
 # bảng dữ liệu cá nhân của người dùng. Admin chỉ xem thống kê ẩn danh (/admin-stats/).
@@ -100,6 +101,13 @@ else:
             "NAME": BASE_DIR / "db.sqlite3",
         }
     }
+
+DATABASE_SYNC_ENABLED = env_bool("DATABASE_SYNC_ENABLED", False)
+DATABASE_SYNC_REMOTE_URL = os.environ.get("DATABASE_SYNC_REMOTE_URL", "").rstrip("/")
+DATABASE_SYNC_SHARED_SECRET = os.environ.get("DATABASE_SYNC_SHARED_SECRET", "")
+DATABASE_SYNC_INTERVAL_SECONDS = max(
+    30, int(os.environ.get("DATABASE_SYNC_INTERVAL_SECONDS", "60"))
+)
 
 AUTH_USER_MODEL = "accounts.User"
 AUTH_PASSWORD_VALIDATORS = [

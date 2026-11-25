@@ -25,6 +25,10 @@ services:
         generateValue: true
       - key: JOURNAL_ENCRYPTION_KEY       # giữ cố định: mất khóa này thì journal cũ không giải mã được
         generateValue: true
+      - key: DATABASE_SYNC_SHARED_SECRET
+        sync: false
+      - key: DATABASE_SYNC_ENABLED
+        value: "0"
       - key: COACH_SERVICE_URL
         value: http://mam-coach:10000
       - key: COACH_SERVICE_TIMEOUT

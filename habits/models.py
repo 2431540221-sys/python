@@ -11,8 +11,10 @@ from django.db import models
 from django.db.models import Q
 from django.utils import timezone
 
+from dbsync.base import SyncModel
 
-class Habit(models.Model):
+
+class Habit(SyncModel):
     user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="habits")
     name = models.CharField("Tên thói quen", max_length=100)
     description = models.CharField("Mô tả", max_length=255, blank=True)
@@ -41,7 +43,7 @@ class Habit(models.Model):
             raise ValidationError({"reminder_time": "Hãy chọn giờ nhắc khi bật nhắc nhở."})
 
 
-class HabitLog(models.Model):
+class HabitLog(SyncModel):
     habit = models.ForeignKey(Habit, on_delete=models.CASCADE, related_name="logs")
     date = models.DateField(default=timezone.localdate)
     note = models.CharField("Ghi chú", max_length=255, blank=True)
@@ -53,11 +55,14 @@ class HabitLog(models.Model):
             models.UniqueConstraint(fields=["habit", "date"], name="one_log_per_habit_per_day")
         ]
 
+    def sync_identity(self):
+        return f"{self.habit.sync_id}:{self.date.isoformat()}"
+
     def __str__(self):
         return f"{self.habit.name} - {self.date}"
 
 
-class Notification(models.Model):
+class Notification(SyncModel):
     KIND_REMINDER = "reminder"
     KIND_STREAK_RISK = "streak_risk"
     KIND_COACH = "coach"
@@ -89,17 +94,24 @@ class Notification(models.Model):
             ),
         ]
 
+    def sync_identity(self):
+        habit_id = self.habit.sync_id if self.habit_id else "global"
+        return f"{self.user.sync_id}:{self.kind}:{habit_id}:{self.day.isoformat()}"
+
     def __str__(self):
         return self.title
 
 
-class BrowserPushSubscription(models.Model):
+class BrowserPushSubscription(SyncModel):
     user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="push_subscriptions")
     endpoint = models.URLField(max_length=2048, unique=True)
     p256dh = models.CharField(max_length=200)
     auth = models.CharField(max_length=100)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
+
+    def sync_identity(self):
+        return self.endpoint
 
     def __str__(self):
         return f"Push subscription {self.pk} for user {self.user_id}"

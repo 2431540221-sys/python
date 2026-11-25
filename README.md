@@ -123,6 +123,24 @@ Nếu Render không tự deploy sau khi push/merge, mở **Settings** của từ
 
 `SECRET_KEY`, `JOURNAL_ENCRYPTION_KEY`, `DATABASE_URL` và các thiết lập cơ bản đã được khai báo trong Blueprint. Kiểm tra gói dịch vụ Render hiện hành trước khi triển khai vì chính sách/gói miễn phí có thể thay đổi.
 
+## Đồng bộ dữ liệu SQLite local với Render
+
+Đây là đồng bộ hai chiều theo kiểu bản cập nhật mới nhất thắng; worker chỉ chạy khi ứng dụng local được mở. Render lưu các thay đổi cho đến lần local kết nối tiếp theo. Tài khoản và password hash được đồng bộ; journal được mã hóa khi truyền và cần dùng cùng một `JOURNAL_ENCRYPTION_KEY` ở cả hai nơi.
+
+1. Tạo backup database Render trước khi bắt đầu. Trong **Environment** của `mam-wellbeing`, đặt `DATABASE_SYNC_SHARED_SECRET` thành một chuỗi ngẫu nhiên dài và giữ `DATABASE_SYNC_ENABLED=0`.
+2. Trong `.env` local, bật `DATABASE_SYNC_ENABLED=1`, đặt `DATABASE_SYNC_REMOTE_URL` thành URL HTTPS của `mam-wellbeing` (không thêm `/` cuối), và đặt `DATABASE_SYNC_SHARED_SECRET` giống hệt Render.
+3. Đặt `JOURNAL_ENCRYPTION_KEY` local giống hệt giá trị của Render. Không thay khóa hiện tại, không gửi khóa vào Git/chat và không dùng `.env.example` như khóa thật.
+4. Chạy bootstrap **một lần** để dữ liệu local thay thế dữ liệu ứng dụng hiện tại trên Render. Xác nhận rõ trước khi chạy:
+
+   ```powershell
+   .\.venv\Scripts\python.exe manage.py sync_bootstrap_render --confirm-render-replacement
+   ```
+
+   Lệnh từ chối database local rỗng; dữ liệu Render chỉ bị thay thế khi bước commit cuối thành công. Nếu lệnh dừng giữa lúc tải, dữ liệu Render chưa bị thay thế.
+5. Khởi động ứng dụng local bằng Uvicorn như thường lệ. Worker sẽ đồng bộ định kỳ; dừng ứng dụng local thì việc đồng bộ tạm dừng. Không bật `DATABASE_SYNC_ENABLED` trên Render.
+
+Không chạy bootstrap lần nữa nếu không chủ động muốn thay toàn bộ dữ liệu Render bằng bản local. Việc đồng bộ không thể gộp hai tài khoản riêng có cùng tên đăng nhập; sau bootstrap, mỗi tài khoản dùng chung password hash giữa hai môi trường.
+
 ## Lưu ý
 
 - Không đưa secret/API key vào Git. Giữ cố định `JOURNAL_ENCRYPTION_KEY`; thay khóa có thể khiến journal đã mã hóa không đọc được.

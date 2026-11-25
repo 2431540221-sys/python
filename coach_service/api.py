@@ -1,4 +1,5 @@
 import json
+from contextlib import asynccontextmanager
 from datetime import date
 
 from django.conf import settings
@@ -20,6 +21,8 @@ from coach import safety
 from coach.models import CoachReport
 from coach.service import ConsentRequired, generate_report
 from coach_service.main import router as internal_ai_router
+from dbsync.api import router as database_sync_router
+from dbsync.worker import start_worker_if_configured
 from habits.forms import HabitForm
 from habits.models import Habit, Notification
 from habits.services import get_habit_stats, mark_day_done
@@ -28,7 +31,15 @@ from tracking.forms import CheckinForm, JournalForm
 from tracking.models import DailyCheckin, JournalEntry
 
 router = APIRouter(prefix="/api")
-api_app = FastAPI(title="Mầm API", version="1.0.0")
+
+
+@asynccontextmanager
+async def lifespan(_app):
+    start_worker_if_configured()
+    yield
+
+
+api_app = FastAPI(title="Mầm API", version="1.0.0", lifespan=lifespan)
 
 
 class ApiError(Exception):
@@ -422,4 +433,5 @@ def coach_weekly_create(user=Depends(current_user)):
 
 
 api_app.include_router(router)
+api_app.include_router(database_sync_router)
 api_app.include_router(internal_ai_router, prefix="/internal-ai")

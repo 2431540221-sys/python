@@ -14,6 +14,7 @@ from datetime import date, timedelta
 from django.conf import settings
 from django.core.exceptions import ImproperlyConfigured
 from django.core.mail import send_mail
+from django.db import transaction
 from django.utils import timezone
 
 from .models import BrowserPushSubscription, Habit, HabitLog, Notification
@@ -239,7 +240,25 @@ def send_due_reminders(now=None):
             continue  # hôm nay đã làm rồi, không cần nhắc
 
         # "Giành quyền" nhắc bằng 1 câu UPDATE: hai tiến trình chạy trùng thì chỉ một bên thắng.
-        claimed = Habit.objects.filter(pk=habit.pk).exclude(last_reminded_on=today).update(last_reminded_on=today)
+        claimed_at = timezone.now()
+        with transaction.atomic():
+            claimed = (
+                Habit.objects.filter(pk=habit.pk)
+                .exclude(last_reminded_on=today)
+                .update(last_reminded_on=today, sync_updated_at=claimed_at)
+            )
+            if claimed:
+                from dbsync.codec import append_event, serialize_instance
+
+                habit.last_reminded_on = today
+                habit.sync_updated_at = claimed_at
+                append_event(
+                    "habits.habit",
+                    habit.sync_id,
+                    claimed_at,
+                    False,
+                    serialize_instance(habit),
+                )
         if not claimed:
             continue
 
