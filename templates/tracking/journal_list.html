@@ -1,7 +1,7 @@
 {% extends "base.html" %}
 {% block title %}Journal{% endblock %}
 {% block content %}
-<div class="page-head"><div><h1>Journal</h1><p><span class="lock"><svg class="icon" style="width:14px;height:14px"><use href="#i-lock"/></svg>Mã hóa, chỉ mình bạn đọc được</span></p></div><a class="btn" href="{% url 'journal_create' %}">Viết mới</a></div>
+<div class="page-head"><div><h1>Journal</h1></div><a class="btn" href="{% url 'journal_create' %}">Viết mới</a></div>
 <form method="get" class="field" style="max-width:420px"><label for="q" class="sr-only">Tìm trong journal</label><input id="q" type="text" name="q" value="{{ q }}" placeholder="Tìm trong journal của bạn"></form>
 <section class="panel">
 {% for e in entries %}
