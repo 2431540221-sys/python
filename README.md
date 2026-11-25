@@ -141,21 +141,9 @@ Nếu Render không tự deploy sau khi push/merge, mở **Settings** của từ
 
 Không chạy bootstrap lần nữa nếu không chủ động muốn thay toàn bộ dữ liệu Render bằng bản local. Việc đồng bộ không thể gộp hai tài khoản riêng có cùng tên đăng nhập; sau bootstrap, mỗi tài khoản dùng chung password hash giữa hai môi trường.
 
-### Đổi khóa mã hóa journal an toàn
-
-Không đổi `JOURNAL_ENCRYPTION_KEY` trực tiếp khi database đã có journal: nội dung hiện có sẽ không giải mã được. Để đổi khóa, cần chạy lệnh xoay khóa trên từng database, dùng khóa hiện tại làm khóa cũ và cùng một khóa mới cho cả local lẫn Render.
-
-1. Sao lưu cả hai database, dừng ứng dụng local và tạm ngưng thao tác ghi journal trên Render. Giữ `DATABASE_SYNC_ENABLED=0` trên Render.
-2. Tạo khóa mới riêng tư bằng `.\.venv\Scripts\python.exe -c "import secrets; print(secrets.token_urlsafe(32))"`. Thêm cùng giá trị đó vào `JOURNAL_ENCRYPTION_KEY_NEXT` trong `.env` và Environment của Render; trong khi xoay, để `JOURNAL_ENCRYPTION_KEY` hiện tại chưa đổi.
-3. Trên cả local và Render, chạy `python manage.py rotate_journal_encryption_key --check-only`. Chỉ tiếp tục nếu cả hai lệnh báo kiểm tra thành công.
-4. Chạy `python manage.py rotate_journal_encryption_key --confirm` trên local và Render. Lệnh dùng transaction riêng cho từng database; không bật ứng dụng hoặc đồng bộ giữa hai lần chạy.
-5. Sau khi cả hai chạy thành công, đặt `JOURNAL_ENCRYPTION_KEY` bằng khóa mới trên cả hai nơi, xóa `JOURNAL_ENCRYPTION_KEY_NEXT`, khởi động lại ứng dụng, rồi chạy `--check-only` trên cả hai database lần nữa.
-
-Nếu một bước lỗi, không khởi động worker hay chạy bootstrap; giữ bản sao lưu và các khóa hiện có, rồi xử lý trạng thái trước khi tiếp tục. Không gửi khóa vào Git/chat.
-
 ## Lưu ý
 
-- Không đưa secret/API key vào Git. Không dùng `SECRET_KEY` mẫu từ môi trường phát triển làm khóa production; việc đổi `SECRET_KEY` và `JOURNAL_ENCRYPTION_KEY` là hai thao tác riêng.
+- Không đưa secret/API key vào Git. Giữ cố định `JOURNAL_ENCRYPTION_KEY`; thay khóa có thể khiến journal đã mã hóa không đọc được.
 - Render gói miễn phí có thể đưa service vào trạng thái ngủ khi ít truy cập; lần mở đầu có thể chậm và scheduler chỉ chạy khi service hoạt động.
 - Email và Web Push cần cấu hình riêng; Web Push yêu cầu HTTPS và người dùng cấp quyền trên trình duyệt.
 - AI coach chỉ hỗ trợ tự theo dõi, không chẩn đoán hay thay thế tư vấn y tế. Tránh nhập thông tin định danh vào câu hỏi gửi cho AI.
