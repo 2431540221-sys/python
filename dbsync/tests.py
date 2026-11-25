@@ -1,10 +1,16 @@
+import os
 import uuid
 from datetime import timedelta
+from unittest.mock import patch
 
+from django.core.management import call_command
+from django.core.management.base import CommandError
+from django.db import connection
 from django.test import TestCase, TransactionTestCase, override_settings
 from django.utils import timezone
 from fastapi.testclient import TestClient
 
+from accounts.crypto import _fernet
 from accounts.models import User
 from habits.models import Habit, HabitLog
 from tracking.models import JournalEntry
@@ -107,6 +113,60 @@ class SyncCodecTests(TestCase):
             JournalEntry.objects.get(sync_id=copied_id).content,
             plaintext,
         )
+
+    @override_settings(JOURNAL_ENCRYPTION_KEY="old-journal-key")
+    def test_journal_key_rotation_reencrypts_entries_atomically(self):
+        _fernet.cache_clear()
+        self.addCleanup(_fernet.cache_clear)
+        journal = JournalEntry.objects.create(
+            user=self.user,
+            title="Private",
+            content="private journal text",
+        )
+        with patch.dict(os.environ, {"JOURNAL_ENCRYPTION_KEY_NEXT": "new-journal-key"}):
+            call_command("rotate_journal_encryption_key", "--check-only")
+            with patch.dict(os.environ, {"JOURNAL_ENCRYPTION_KEY_NEXT": "old-journal-key"}):
+                with self.assertRaises(CommandError):
+                    call_command("rotate_journal_encryption_key", "--confirm")
+            call_command("rotate_journal_encryption_key", "--confirm")
+
+        _fernet.cache_clear()
+        with override_settings(JOURNAL_ENCRYPTION_KEY="new-journal-key"):
+            self.assertEqual(
+                JournalEntry.objects.get(pk=journal.pk).content,
+                "private journal text",
+            )
+            with patch.dict(os.environ):
+                os.environ.pop("JOURNAL_ENCRYPTION_KEY_NEXT", None)
+                call_command("rotate_journal_encryption_key", "--check-only")
+
+    @override_settings(JOURNAL_ENCRYPTION_KEY="old-journal-key")
+    def test_journal_key_rotation_failure_leaves_ciphertext_unchanged(self):
+        _fernet.cache_clear()
+        self.addCleanup(_fernet.cache_clear)
+        journal = JournalEntry.objects.create(
+            user=self.user,
+            title="Private",
+            content="private journal text",
+        )
+        with connection.cursor() as cursor:
+            cursor.execute(
+                "SELECT content FROM tracking_journalentry WHERE id = %s",
+                [journal.pk],
+            )
+            original_ciphertext = cursor.fetchone()[0]
+
+        with patch.dict(os.environ, {"JOURNAL_ENCRYPTION_KEY_NEXT": "new-journal-key"}):
+            with override_settings(JOURNAL_ENCRYPTION_KEY="incorrect-old-key"):
+                with self.assertRaises(CommandError):
+                    call_command("rotate_journal_encryption_key", "--confirm")
+
+        with connection.cursor() as cursor:
+            cursor.execute(
+                "SELECT content FROM tracking_journalentry WHERE id = %s",
+                [journal.pk],
+            )
+            self.assertEqual(cursor.fetchone()[0], original_ciphertext)
 
 
 class SyncApiTests(TransactionTestCase):
