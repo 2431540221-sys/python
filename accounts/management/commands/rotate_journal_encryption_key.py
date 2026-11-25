@@ -136,6 +136,10 @@ class Command(BaseCommand):
                 "The Render rotation target must be a PostgreSQL database."
             )
 
+        database_config = {
+            **connections.databases["default"],
+            **database_config,
+        }
         alias = "journal_rotation_render"
         connections.databases[alias] = database_config
         return alias

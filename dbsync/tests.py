@@ -207,6 +207,7 @@ class SyncCodecTests(TestCase):
                     connections.databases[alias]["OPTIONS"]["sslmode"],
                     "require",
                 )
+                self.assertIn("TIME_ZONE", connections.databases[alias])
             finally:
                 connections.databases.pop(alias, None)
 
