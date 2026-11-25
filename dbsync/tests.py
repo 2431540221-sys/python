@@ -119,6 +119,12 @@ class SyncApiTests(TransactionTestCase):
                 "/internal/sync/exchange/",
                 json={"after": 0, "acknowledged": 0, "changes": []},
             )
+            with self.assertLogs("dbsync.api", level="WARNING") as auth_logs:
+                mismatch = client.post(
+                    "/internal/sync/exchange/",
+                    json={"after": 0, "acknowledged": 0, "changes": []},
+                    headers={"X-Database-Sync-Secret": "incorrect"},
+                )
             empty_bootstrap = client.post(
                 "/internal/sync/bootstrap/begin/",
                 json={"count": 0},
@@ -131,6 +137,9 @@ class SyncApiTests(TransactionTestCase):
             )
 
         self.assertEqual(denied.status_code, 401)
+        self.assertEqual(mismatch.status_code, 401)
+        self.assertIn("secret_mismatch", auth_logs.output[0])
+        self.assertNotIn("test-sync-secret", auth_logs.output[0])
         self.assertEqual(empty_bootstrap.status_code, 400)
         self.assertEqual(accepted.status_code, 200)
         self.assertEqual(accepted.json(), {"changes": [], "cursor": 0})
