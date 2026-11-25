@@ -1,4 +1,5 @@
 import hmac
+import logging
 import uuid
 
 from django.conf import settings
@@ -23,11 +24,29 @@ MAX_BATCH = 200
 MAX_BOOTSTRAP_BATCH = 25
 MAX_BOOTSTRAP_RECORDS = 1_000_000
 
+logger = logging.getLogger(__name__)
+
 
 def _authorized(request):
     expected = settings.DATABASE_SYNC_SHARED_SECRET
     supplied = request.headers.get("x-database-sync-secret", "")
-    return bool(expected) and hmac.compare_digest(supplied, expected)
+    if not expected:
+        reason = "server_secret_unset"
+    elif not supplied:
+        reason = "header_missing"
+    elif not hmac.compare_digest(supplied, expected):
+        reason = "secret_mismatch"
+    else:
+        return True
+
+    logger.warning(
+        "Database sync authorization rejected: reason=%s server_secret_length=%d "
+        "request_header_length=%d",
+        reason,
+        len(expected),
+        len(supplied),
+    )
+    return False
 
 
 def _unauthorized():
