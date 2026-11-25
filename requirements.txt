@@ -4,6 +4,7 @@ cryptography>=42
 whitenoise>=6.6
 APScheduler>=3.10,<4
 dj-database-url>=2.1
+psycopg[binary]>=3.1
 pywebpush>=2.0,<3
 fastapi>=0.115,<1
 uvicorn[standard]>=0.30,<1

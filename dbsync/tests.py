@@ -1,10 +1,19 @@
+import os
 import uuid
 from datetime import timedelta
+from unittest.mock import patch
 
+from django.core.management import call_command
+from django.core.management.base import CommandError
+from django.db import connection, connections
 from django.test import TestCase, TransactionTestCase, override_settings
 from django.utils import timezone
 from fastapi.testclient import TestClient
 
+from accounts.crypto import _fernet
+from accounts.management.commands.rotate_journal_encryption_key import (
+    Command as RotateJournalEncryptionKeyCommand,
+)
 from accounts.models import User
 from habits.models import Habit, HabitLog
 from tracking.models import JournalEntry
@@ -107,6 +116,100 @@ class SyncCodecTests(TestCase):
             JournalEntry.objects.get(sync_id=copied_id).content,
             plaintext,
         )
+
+    @override_settings(JOURNAL_ENCRYPTION_KEY="old-journal-key")
+    def test_journal_key_rotation_reencrypts_entries_atomically(self):
+        _fernet.cache_clear()
+        self.addCleanup(_fernet.cache_clear)
+        journal = JournalEntry.objects.create(
+            user=self.user,
+            title="Private",
+            content="private journal text",
+        )
+        with patch.dict(os.environ, {"JOURNAL_ENCRYPTION_KEY_NEXT": "new-journal-key"}):
+            call_command("rotate_journal_encryption_key", "--check-only")
+            with patch.dict(os.environ, {"JOURNAL_ENCRYPTION_KEY_NEXT": "old-journal-key"}):
+                with self.assertRaises(CommandError):
+                    call_command("rotate_journal_encryption_key", "--confirm")
+            call_command("rotate_journal_encryption_key", "--confirm")
+
+        _fernet.cache_clear()
+        with override_settings(JOURNAL_ENCRYPTION_KEY="new-journal-key"):
+            self.assertEqual(
+                JournalEntry.objects.get(pk=journal.pk).content,
+                "private journal text",
+            )
+            with patch.dict(os.environ):
+                os.environ.pop("JOURNAL_ENCRYPTION_KEY_NEXT", None)
+                call_command("rotate_journal_encryption_key", "--check-only")
+
+    @override_settings(JOURNAL_ENCRYPTION_KEY="old-journal-key")
+    def test_journal_key_rotation_failure_leaves_ciphertext_unchanged(self):
+        _fernet.cache_clear()
+        self.addCleanup(_fernet.cache_clear)
+        journal = JournalEntry.objects.create(
+            user=self.user,
+            title="Private",
+            content="private journal text",
+        )
+        with connection.cursor() as cursor:
+            cursor.execute(
+                "SELECT content FROM tracking_journalentry WHERE id = %s",
+                [journal.pk],
+            )
+            original_ciphertext = cursor.fetchone()[0]
+
+        with patch.dict(os.environ, {"JOURNAL_ENCRYPTION_KEY_NEXT": "new-journal-key"}):
+            with override_settings(JOURNAL_ENCRYPTION_KEY="incorrect-old-key"):
+                with self.assertRaises(CommandError):
+                    call_command("rotate_journal_encryption_key", "--confirm")
+
+        with connection.cursor() as cursor:
+            cursor.execute(
+                "SELECT content FROM tracking_journalentry WHERE id = %s",
+                [journal.pk],
+            )
+            self.assertEqual(cursor.fetchone()[0], original_ciphertext)
+
+    def test_render_rotation_target_requires_external_database_url(self):
+        command = RotateJournalEncryptionKeyCommand()
+        with patch.dict(os.environ, {"JOURNAL_ROTATION_RENDER_DATABASE_URL": ""}):
+            with self.assertRaises(CommandError):
+                command._database_alias(render_database=True)
+
+    def test_render_rotation_target_requires_postgresql(self):
+        command = RotateJournalEncryptionKeyCommand()
+        with patch.dict(
+            os.environ,
+            {"JOURNAL_ROTATION_RENDER_DATABASE_URL": "sqlite:///local.db"},
+        ):
+            with self.assertRaises(CommandError):
+                command._database_alias(render_database=True)
+
+    def test_render_rotation_target_uses_ssl_postgresql_connection(self):
+        command = RotateJournalEncryptionKeyCommand()
+        alias = "journal_rotation_render"
+        with patch.dict(
+            os.environ,
+            {
+                "JOURNAL_ROTATION_RENDER_DATABASE_URL": (
+                    "postgresql://test:test@example.invalid/testdb"
+                )
+            },
+        ):
+            try:
+                self.assertEqual(command._database_alias(render_database=True), alias)
+                self.assertEqual(
+                    connections.databases[alias]["ENGINE"],
+                    "django.db.backends.postgresql",
+                )
+                self.assertEqual(
+                    connections.databases[alias]["OPTIONS"]["sslmode"],
+                    "require",
+                )
+                self.assertIn("TIME_ZONE", connections.databases[alias])
+            finally:
+                connections.databases.pop(alias, None)
 
 
 class SyncApiTests(TransactionTestCase):

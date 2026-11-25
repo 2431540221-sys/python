@@ -10,11 +10,15 @@ from django.db import models
 DECRYPT_FAILED = "[Không giải mã được nội dung này]"
 
 
+def fernet_for_key(secret: str) -> Fernet:
+    raw = secret.encode("utf-8")
+    key = base64.urlsafe_b64encode(hashlib.sha256(raw).digest())
+    return Fernet(key)
+
+
 @lru_cache(maxsize=1)
 def _fernet():
-    raw = settings.JOURNAL_ENCRYPTION_KEY.encode("utf-8")
-    key = base64.urlsafe_b64encode(hashlib.sha256(raw).digest())  # 32 byte -> khóa Fernet
-    return Fernet(key)
+    return fernet_for_key(settings.JOURNAL_ENCRYPTION_KEY)
 
 
 def encrypt_text(plain: str) -> str:
