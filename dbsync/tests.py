@@ -5,12 +5,15 @@ from unittest.mock import patch
 
 from django.core.management import call_command
 from django.core.management.base import CommandError
-from django.db import connection
+from django.db import connection, connections
 from django.test import TestCase, TransactionTestCase, override_settings
 from django.utils import timezone
 from fastapi.testclient import TestClient
 
 from accounts.crypto import _fernet
+from accounts.management.commands.rotate_journal_encryption_key import (
+    Command as RotateJournalEncryptionKeyCommand,
+)
 from accounts.models import User
 from habits.models import Habit, HabitLog
 from tracking.models import JournalEntry
@@ -167,6 +170,45 @@ class SyncCodecTests(TestCase):
                 [journal.pk],
             )
             self.assertEqual(cursor.fetchone()[0], original_ciphertext)
+
+    def test_render_rotation_target_requires_external_database_url(self):
+        command = RotateJournalEncryptionKeyCommand()
+        with patch.dict(os.environ, {"JOURNAL_ROTATION_RENDER_DATABASE_URL": ""}):
+            with self.assertRaises(CommandError):
+                command._database_alias(render_database=True)
+
+    def test_render_rotation_target_requires_postgresql(self):
+        command = RotateJournalEncryptionKeyCommand()
+        with patch.dict(
+            os.environ,
+            {"JOURNAL_ROTATION_RENDER_DATABASE_URL": "sqlite:///local.db"},
+        ):
+            with self.assertRaises(CommandError):
+                command._database_alias(render_database=True)
+
+    def test_render_rotation_target_uses_ssl_postgresql_connection(self):
+        command = RotateJournalEncryptionKeyCommand()
+        alias = "journal_rotation_render"
+        with patch.dict(
+            os.environ,
+            {
+                "JOURNAL_ROTATION_RENDER_DATABASE_URL": (
+                    "postgresql://test:test@example.invalid/testdb"
+                )
+            },
+        ):
+            try:
+                self.assertEqual(command._database_alias(render_database=True), alias)
+                self.assertEqual(
+                    connections.databases[alias]["ENGINE"],
+                    "django.db.backends.postgresql",
+                )
+                self.assertEqual(
+                    connections.databases[alias]["OPTIONS"]["sslmode"],
+                    "require",
+                )
+            finally:
+                connections.databases.pop(alias, None)
 
 
 class SyncApiTests(TransactionTestCase):

@@ -12,10 +12,16 @@ from tracking.models import JournalEntry
 class Command(BaseCommand):
     help = (
         "Re-encrypt every journal entry using JOURNAL_ENCRYPTION_KEY_NEXT "
-        "without changing the active key setting."
+        "without changing the active key setting. Can target Render via its "
+        "external PostgreSQL URL."
     )
 
     def add_arguments(self, parser):
+        parser.add_argument(
+            "--render-database",
+            action="store_true",
+            help="Target the Render PostgreSQL URL in JOURNAL_ROTATION_RENDER_DATABASE_URL.",
+        )
         actions = parser.add_mutually_exclusive_group(required=True)
         actions.add_argument(
             "--check-only",
@@ -43,7 +49,8 @@ class Command(BaseCommand):
                     "The new journal key must differ from the active key."
                 )
             new_fernet = fernet_for_key(next_key)
-        connection = connections["default"]
+        alias = self._database_alias(options["render_database"])
+        connection = connections[alias]
         model = JournalEntry
         table = connection.ops.quote_name(model._meta.db_table)
         pk_column = connection.ops.quote_name(model._meta.pk.column)
@@ -57,7 +64,7 @@ class Command(BaseCommand):
         )
 
         rotated = 0
-        with transaction.atomic(using="default"):
+        with transaction.atomic(using=alias):
             with connection.cursor() as cursor:
                 cursor.execute(select_sql)
                 entries = cursor.fetchall()
@@ -84,14 +91,51 @@ class Command(BaseCommand):
                     cursor.executemany(update_sql, encrypted_entries)
 
         if options["check_only"]:
+            target = "Render " if options["render_database"] else ""
             self.stdout.write(
                 self.style.SUCCESS(
-                    f"Journal key check passed: {len(entries)} entries are readable."
+                    f"{target}journal key check passed: "
+                    f"{len(entries)} entries are readable."
                 )
             )
         else:
+            target = "Render " if options["render_database"] else ""
             self.stdout.write(
                 self.style.SUCCESS(
-                    f"Journal key rotation completed: {rotated} non-empty entries re-encrypted."
+                    f"{target}journal key rotation completed: "
+                    f"{rotated} non-empty entries re-encrypted."
                 )
             )
+
+    @staticmethod
+    def _database_alias(render_database):
+        if not render_database:
+            return "default"
+
+        url = os.environ.get("JOURNAL_ROTATION_RENDER_DATABASE_URL", "").strip()
+        if not url:
+            raise CommandError(
+                "Set JOURNAL_ROTATION_RENDER_DATABASE_URL to Render's external "
+                "PostgreSQL URL."
+            )
+
+        import dj_database_url
+
+        try:
+            database_config = dj_database_url.parse(
+                url,
+                conn_max_age=0,
+                ssl_require=True,
+            )
+        except (TypeError, ValueError) as exc:
+            raise CommandError(
+                "JOURNAL_ROTATION_RENDER_DATABASE_URL is not a valid database URL."
+            ) from exc
+        if database_config.get("ENGINE") != "django.db.backends.postgresql":
+            raise CommandError(
+                "The Render rotation target must be a PostgreSQL database."
+            )
+
+        alias = "journal_rotation_render"
+        connections.databases[alias] = database_config
+        return alias
