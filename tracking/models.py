@@ -5,6 +5,7 @@ from django.db import models
 from django.utils import timezone
 
 from accounts.crypto import EncryptedTextField
+from dbsync.base import SyncModel
 
 MOOD_CHOICES = [(1, "Rất tệ"), (2, "Không ổn"), (3, "Bình thường"), (4, "Tốt"), (5, "Rất tốt")]
 
@@ -20,7 +21,7 @@ ACTIVITY_CHOICES = [
 ]
 
 
-class DailyCheckin(models.Model):
+class DailyCheckin(SyncModel):
     """Một dòng = một ngày của một người (check-in lại trong ngày sẽ cập nhật dòng đó)."""
 
     user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="checkins")
@@ -43,11 +44,14 @@ class DailyCheckin(models.Model):
         ordering = ["-date"]
         constraints = [models.UniqueConstraint(fields=["user", "date"], name="one_checkin_per_user_per_day")]
 
+    def sync_identity(self):
+        return f"{self.user.sync_id}:{self.date.isoformat()}"
+
     def __str__(self):
         return f"{self.user_id} - {self.date}"
 
 
-class JournalEntry(models.Model):
+class JournalEntry(SyncModel):
     """Journal riêng tư: chỉ chủ sở hữu xem được, nội dung được mã hóa trong database."""
 
     user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="journals")

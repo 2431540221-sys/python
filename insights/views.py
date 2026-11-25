@@ -78,7 +78,9 @@ def notifications_read(request):
     qs = Notification.objects.filter(user=request.user, is_read=False)
     if pk:
         qs = qs.filter(pk=get_object_or_404(Notification, pk=pk, user=request.user).pk)
-    qs.update(is_read=True)
+    for notification in qs:
+        notification.is_read = True
+        notification.save(update_fields=["is_read"])
     return redirect("notifications")
 
 

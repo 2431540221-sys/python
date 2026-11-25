@@ -8,3 +8,4 @@ staticfiles/
 .env
 .env.*
 !.env.example
+.database-sync-worker.lock

@@ -1,8 +1,10 @@
 from django.conf import settings
 from django.db import models
 
+from dbsync.base import SyncModel
 
-class CoachReport(models.Model):
+
+class CoachReport(SyncModel):
     """Bản tóm tắt tuần do AI coach (hoặc bộ luật dự phòng) tạo ra cho một người dùng."""
 
     SOURCE_RULES = "rules"
@@ -22,6 +24,9 @@ class CoachReport(models.Model):
     class Meta:
         ordering = ["-week_end", "-updated_at"]
         constraints = [models.UniqueConstraint(fields=["user", "week_end"], name="one_report_per_user_per_week_end")]
+
+    def sync_identity(self):
+        return f"{self.user.sync_id}:{self.week_end.isoformat()}"
 
     def __str__(self):
         return f"Báo cáo {self.week_start} - {self.week_end}"

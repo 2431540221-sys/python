@@ -2,8 +2,10 @@ from django.conf import settings
 from django.db import models
 from django.utils import timezone
 
+from dbsync.base import SyncModel
 
-class DailyWellbeingIndex(models.Model):
+
+class DailyWellbeingIndex(SyncModel):
     """Chỉ số wellbeing tổng hợp theo ngày (thang 0-100)."""
 
     user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="wellbeing_indices")
@@ -23,3 +25,5 @@ class DailyWellbeingIndex(models.Model):
             models.UniqueConstraint(fields=["user", "date"], name="one_wellbeing_index_per_day")
         ]
 
+    def sync_identity(self):
+        return f"{self.user.sync_id}:{self.date.isoformat()}"
